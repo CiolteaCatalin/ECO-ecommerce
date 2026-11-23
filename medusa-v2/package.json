@@ -1,0 +1,20 @@
+{
+  "name": "medusa-v2-extended-backend",
+  "version": "1.0.0",
+  "description": "Medusa v2 backend with custom extended product module (descriptions, gallery, SEO, min/max/step quantities, tiered pricing)",
+  "scripts": {
+    "build": "medusa build",
+    "dev": "medusa develop",
+    "start": "medusa start",
+    "db:migrate": "medusa db:migrate"
+  },
+  "dependencies": {
+    "@medusajs/framework": "^2.5.0",
+    "@medusajs/medusa": "^2.5.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "^5.7.0"
+  }
+}

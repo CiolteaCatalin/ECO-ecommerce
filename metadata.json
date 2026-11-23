@@ -1,0 +1,6 @@
+{
+  "name": "Medusa Commerce Studio",
+  "description": "Headless commerce admin console and Medusa v2 product blueprint with extended product editor, tiered pricing, inventory rules, and SEO management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: medusa_dev_password
+      POSTGRES_DB: medusa_store
+    ports:
+      - "5432:5432"
+    volumes:
+      - medusa_pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - medusa_redis_data:/data
+
+volumes:
+  medusa_pg_data:
+  medusa_redis_data:
