@@ -4,78 +4,39 @@ import { useAuth } from '../context/AuthContext';
 import { formatMoney, type CustomerRecord } from '../types/commerce';
 import { GenericModulePanel } from './GenericModulePanel';
 
+export type CustomerSubpageKey =
+  | 'toti'
+  | 'recurenti'
+  | 'newsletter'
+  | 'cosuri-abandonate';
+
+type SegmentTab = 'all' | 'recurring' | 'newsletter' | 'blacklisted' | 'abandoned';
+
 interface CustomersWorkspaceProps {
-  subPageId: string;
+  initialSubpage?: CustomerSubpageKey;
 }
 
-const MODULE_MAP: Record<
-  string,
-  { moduleKey: string; title: string; description: string; codeLabel: string }
-> = {
-  'grupuri-clienti': {
-    moduleKey: 'customer_groups',
-    title: 'Grupuri de clienți',
-    description: 'Segmentează clienții B2B, VIP și Retail pentru praguri de preț și reguli dedicate.',
-    codeLabel: 'Cod Grup',
-  },
-  'cosuri-abandonate': {
-    moduleKey: 'abandoned_carts',
-    title: 'Coșuri abandonate',
-    description: 'Vizualizează coșurile nefinalizate și declanșează notificări de recuperare.',
-    codeLabel: 'Email Client',
-  },
-  'reguli-blacklist': {
-    moduleKey: 'blacklist_rules',
-    title: 'Reguli Blacklist',
-    description: 'Restricționează adrese IP, emailuri sau numere de telefon cu risc ridicat de neridicare.',
-    codeLabel: 'Criteriu Blocare',
-  },
-  'marturii-clienti': {
-    moduleKey: 'testimonials',
-    title: 'Mărturii clienți',
-    description: 'Administrează testimonialele afișate pe paginile de produs și homepage.',
-    codeLabel: 'Autor',
-  },
-  'feeduri-clienti': {
-    moduleKey: 'customer_feeds',
-    title: 'Feed-uri de clienți',
-    description: 'Sincronizează segmentele de clienți către CRM și platforme de email marketing.',
-    codeLabel: 'Destinație',
-  },
-  'solicitari-feedback': {
-    moduleKey: 'feedback_requests',
-    title: 'Solicitări feedback',
-    description: 'Programează și monitorizează cererile automate de evaluare post-livrare.',
-    codeLabel: 'Trigger',
-  },
-  'feedback-clienti': {
-    moduleKey: 'customer_feedback',
-    title: 'Feedback clienți',
-    description: 'Răspunde la evaluările și scorurile primite de la cumpărători.',
-    codeLabel: 'Notă / Scor',
-  },
-  'mesaje-contact': {
-    moduleKey: 'contact_messages',
-    title: 'Mesaje contact',
-    description: 'Gestionează tichetele și mesajele trimise prin pagina de contact.',
-    codeLabel: 'Email Expeditor',
-  },
-  'emailuri-trimise': {
-    moduleKey: 'sent_emails',
-    title: 'Emailuri trimise',
-    description: 'Jurnalul emailurilor tranzacționale și de marketing livrate către clienți.',
-    codeLabel: 'Destinatar',
-  },
-};
+function mapSubpageToSegment(sub: CustomerSubpageKey): SegmentTab {
+  if (sub === 'recurenti') return 'recurring';
+  if (sub === 'newsletter') return 'newsletter';
+  if (sub === 'cosuri-abandonate') return 'abandoned';
+  return 'all';
+}
 
-type SegmentTab = 'all' | 'recurring' | 'newsletter' | 'blacklisted';
-
-export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
+export function CustomersWorkspace({
+  initialSubpage = 'toti',
+}: CustomersWorkspaceProps) {
   const { authFetch } = useAuth();
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [segment, setSegment] = useState<SegmentTab>('all');
+  const [segment, setSegment] = useState<SegmentTab>(
+    mapSubpageToSegment(initialSubpage)
+  );
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setSegment(mapSubpageToSegment(initialSubpage));
+  }, [initialSubpage]);
 
   // Multi-field search
   const [filterNameEmail, setFilterNameEmail] = useState('');
@@ -90,16 +51,6 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
   const [city, setCity] = useState('București');
   const [newsletter, setNewsletter] = useState(true);
 
-  const moduleDef = MODULE_MAP[subPageId];
-
-  useEffect(() => {
-    if (subPageId === 'abonati-newsletter') {
-      setSegment('newsletter');
-    } else {
-      setSegment('all');
-    }
-  }, [subPageId]);
-
   const loadCustomers = useCallback(async () => {
     setLoading(true);
     try {
@@ -112,10 +63,8 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
   }, [authFetch]);
 
   useEffect(() => {
-    if (!moduleDef) {
-      loadCustomers();
-    }
-  }, [moduleDef, loadCustomers]);
+    loadCustomers();
+  }, [loadCustomers]);
 
   const visible = useMemo(() => {
     return customers.filter((c) => {
@@ -125,7 +74,9 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
 
       if (
         filterNameEmail.trim() &&
-        !c.fullName.toLowerCase().includes(filterNameEmail.trim().toLowerCase()) &&
+        !c.fullName
+          .toLowerCase()
+          .includes(filterNameEmail.trim().toLowerCase()) &&
         !c.email.toLowerCase().includes(filterNameEmail.trim().toLowerCase())
       ) {
         return false;
@@ -146,17 +97,6 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
       return true;
     });
   }, [customers, segment, filterNameEmail, filterPhone, filterCityGroup]);
-
-  if (moduleDef) {
-    return (
-      <GenericModulePanel
-        moduleKey={moduleDef.moduleKey}
-        title={moduleDef.title}
-        description={moduleDef.description}
-        codeLabel={moduleDef.codeLabel}
-      />
-    );
-  }
 
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,21 +133,6 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
     await loadCustomers();
   };
 
-  const isNewsletterView = subPageId === 'abonati-newsletter';
-  const isAuthHistoryView = subPageId === 'istoric-autentificari';
-
-  const heading = isNewsletterView
-    ? 'Abonați newsletter'
-    : isAuthHistoryView
-    ? 'Istoric autentificări'
-    : 'Clienți';
-
-  const subtitle = isNewsletterView
-    ? 'Lista clienților cu acord activ pentru campanii email și noutăți.'
-    : isAuthHistoryView
-    ? 'Ultimele sesiuni de autentificare ale conturilor de client în magazin.'
-    : 'Baza de clienți, grupurile comerciale și istoricul valoric al comenzilor.';
-
   const segmentTabs: Array<{ key: SegmentTab; label: string }> = [
     { key: 'all', label: `Toți clienții (${customers.length})` },
     {
@@ -222,29 +147,34 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
       key: 'blacklisted',
       label: `Blocați (${customers.filter((c) => c.isBlacklisted).length})`,
     },
+    {
+      key: 'abandoned',
+      label: 'Coșuri abandonate',
+    },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-teal-900/10 rounded-xl overflow-hidden">
-        <div className="p-5 border-b border-teal-900/10 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="p-5 border-b border-slate-200 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-[#0F2928]">{heading}</h2>
-              <p className="text-sm text-slate-600 mt-0.5">{subtitle}</p>
+              <h2 className="text-lg font-semibold text-slate-900">Clienți</h2>
+              <p className="text-sm text-slate-600 mt-0.5">
+                Baza de clienți, grupurile B2B/VIP, abonările la newsletter și istoricul valoric al comenzilor.
+              </p>
             </div>
             <button
               type="button"
               onClick={() => setShowAdd((v) => !v)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg whitespace-nowrap shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Adaugă client</span>
             </button>
           </div>
 
-          {/* Segment tabs */}
-          <div className="flex items-center gap-1 p-1 bg-[#E7F3F1] rounded-lg w-fit overflow-x-auto max-w-full">
+          <div className="flex items-center gap-1 p-1 bg-[#EAF2FC] rounded-lg w-fit overflow-x-auto max-w-full">
             {segmentTabs.map((tab) => {
               const active = segment === tab.key;
               return (
@@ -254,8 +184,8 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
                   onClick={() => setSegment(tab.key)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
                     active
-                      ? 'bg-white text-teal-900 shadow-xs'
-                      : 'text-slate-600 hover:text-teal-900'
+                      ? 'bg-white text-blue-900 shadow-xs'
+                      : 'text-slate-600 hover:text-blue-900'
                   }`}
                 >
                   {tab.label}
@@ -264,28 +194,27 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
             })}
           </div>
 
-          {/* Multi-field filters */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
             <input
               type="text"
               value={filterNameEmail}
               onChange={(e) => setFilterNameEmail(e.target.value)}
               placeholder="Nume sau Email..."
-              className="px-3 py-2 text-xs bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+              className="px-3 py-2 text-xs bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
             />
             <input
               type="text"
               value={filterPhone}
               onChange={(e) => setFilterPhone(e.target.value)}
               placeholder="Telefon..."
-              className="px-3 py-2 text-xs bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+              className="px-3 py-2 text-xs bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
             />
             <input
               type="text"
               value={filterCityGroup}
               onChange={(e) => setFilterCityGroup(e.target.value)}
               placeholder="Oraș sau Grup (B2B / VIP)..."
-              className="px-3 py-2 text-xs bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+              className="px-3 py-2 text-xs bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
             />
             <button
               type="button"
@@ -294,7 +223,7 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
                 setFilterPhone('');
                 setFilterCityGroup('');
               }}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-[#F7FBFA] hover:bg-teal-50 border border-teal-900/15 rounded-lg"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-[#F4F8FD] hover:bg-blue-50 border border-slate-200 rounded-lg"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Resetează</span>
@@ -302,10 +231,23 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
           </div>
         </div>
 
+        {segment === 'abandoned' ? (
+          <div className="p-5 bg-[#F4F8FD]">
+            <GenericModulePanel
+              moduleKey="abandoned_carts"
+              title="Coșuri abandonate"
+              description="Monitorizează coșurile nefinalizate și codurile de recuperare trimise clienților."
+              codeLabel="Email client / Token coș"
+              codePlaceholder="client@exemplu.ro"
+              extraPlaceholder='{"totalRon": 450, "produse": 2}'
+            />
+          </div>
+        ) : (
+          <>
         {showAdd && (
           <form
             onSubmit={handleAddCustomer}
-            className="p-5 bg-[#F7FBFA] border-b border-teal-900/10 grid grid-cols-1 md:grid-cols-6 gap-3 items-center"
+            className="p-5 bg-[#F4F8FD] border-b border-slate-200 grid grid-cols-1 md:grid-cols-6 gap-3 items-center"
           >
             <input
               type="text"
@@ -313,7 +255,7 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Nume complet *"
-              className="px-3 py-2 text-sm bg-white border border-teal-900/15 rounded-lg"
+              className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg"
             />
             <input
               type="email"
@@ -321,28 +263,28 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email *"
-              className="px-3 py-2 text-sm bg-white border border-teal-900/15 rounded-lg"
+              className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg"
             />
             <input
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Telefon"
-              className="px-3 py-2 text-sm bg-white border border-teal-900/15 rounded-lg"
+              className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg"
             />
             <input
               type="text"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder="Grup"
-              className="px-3 py-2 text-sm bg-white border border-teal-900/15 rounded-lg"
+              className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg"
             />
             <input
               type="text"
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="Oraș"
-              className="px-3 py-2 text-sm bg-white border border-teal-900/15 rounded-lg"
+              className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg"
             />
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-600 inline-flex items-center gap-1">
@@ -355,7 +297,7 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
               </label>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg"
+                className="flex-1 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
               >
                 Salvează
               </button>
@@ -373,7 +315,7 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-b border-teal-900/10 bg-[#F7FBFA] text-xs font-medium text-slate-500">
+                <tr className="border-b border-slate-200 bg-[#F4F8FD] text-xs font-medium text-slate-500">
                   <th className="py-2.5 px-4">Client</th>
                   <th className="py-2.5 px-4">Grup / Oraș</th>
                   <th className="py-2.5 px-4 text-right">Comenzi</th>
@@ -382,20 +324,22 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
                   <th className="py-2.5 px-4">Blacklist</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-teal-900/5">
+              <tbody className="divide-y divide-slate-100">
                 {visible.map((c) => {
                   const isExpanded = expandedId === c.id;
                   return (
                     <Fragment key={c.id}>
-                      <tr className="hover:bg-teal-50/40 transition-colors">
+                      <tr className="hover:bg-blue-50/40 transition-colors">
                         <td className="py-3 px-4">
                           <button
                             type="button"
-                            onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                            className="inline-flex items-center gap-1.5 text-left font-medium text-[#0F2928] hover:text-teal-700"
+                            onClick={() =>
+                              setExpandedId(isExpanded ? null : c.id)
+                            }
+                            className="inline-flex items-center gap-1.5 text-left font-medium text-slate-900 hover:text-blue-700"
                           >
                             {isExpanded ? (
-                              <ChevronDown className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                              <ChevronDown className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                             ) : (
                               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             )}
@@ -412,7 +356,7 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
                         <td className="py-3 px-4 text-right font-mono tabular-nums">
                           {c.ordersCount}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono tabular-nums font-medium text-[#0F2928]">
+                        <td className="py-3 px-4 text-right font-mono tabular-nums font-medium text-slate-900">
                           {formatMoney(c.totalSpentCents, 'RON')}
                         </td>
                         <td className="py-3 px-4">
@@ -427,7 +371,7 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
                             }
                             className={`text-xs font-medium ${
                               c.newsletterSubscribed
-                                ? 'text-teal-700'
+                                ? 'text-blue-700'
                                 : 'text-slate-400'
                             }`}
                           >
@@ -438,10 +382,16 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
                           <button
                             type="button"
                             onClick={() =>
-                              handleToggle(c.id, 'isBlacklisted', !c.isBlacklisted)
+                              handleToggle(
+                                c.id,
+                                'isBlacklisted',
+                                !c.isBlacklisted
+                              )
                             }
                             className={`text-xs font-medium ${
-                              c.isBlacklisted ? 'text-red-600' : 'text-slate-500'
+                              c.isBlacklisted
+                                ? 'text-red-600'
+                                : 'text-slate-500'
                             }`}
                           >
                             {c.isBlacklisted ? 'Blocat' : 'Activ'}
@@ -449,23 +399,36 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="bg-[#F7FBFA]">
-                          <td colSpan={6} className="px-6 py-3.5 text-xs text-slate-700">
+                        <tr className="bg-[#F4F8FD]">
+                          <td
+                            colSpan={6}
+                            className="px-6 py-3.5 text-xs text-slate-700"
+                          >
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
-                                <span className="font-semibold text-[#0F2928]">Contact:</span>{' '}
+                                <span className="font-semibold text-slate-900">
+                                  Contact:
+                                </span>{' '}
                                 {c.email} · {c.phone || 'Fără telefon'}
                               </div>
                               <div>
-                                <span className="font-semibold text-[#0F2928]">Localitate &amp; Grup:</span>{' '}
+                                <span className="font-semibold text-slate-900">
+                                  Localitate &amp; Grup:
+                                </span>{' '}
                                 {c.city} · {c.groupName}
                               </div>
                               <div>
-                                <span className="font-semibold text-[#0F2928]">Ultima autentificare:</span>{' '}
+                                <span className="font-semibold text-slate-900">
+                                  Ultima autentificare:
+                                </span>{' '}
                                 <span className="font-mono">
                                   {c.lastLoginAt
-                                    ? new Date(c.lastLoginAt).toLocaleString('ro-RO')
-                                    : new Date(c.createdAt).toLocaleString('ro-RO')}
+                                    ? new Date(c.lastLoginAt).toLocaleString(
+                                        'ro-RO'
+                                      )
+                                    : new Date(c.createdAt).toLocaleString(
+                                        'ro-RO'
+                                      )}
                                 </span>
                               </div>
                             </div>
@@ -478,6 +441,8 @@ export function CustomersWorkspace({ subPageId }: CustomersWorkspaceProps) {
               </tbody>
             </table>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

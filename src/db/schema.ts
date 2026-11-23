@@ -27,13 +27,17 @@ export const products = pgTable('products', {
   longDescription: text('long_description').notNull().default(''),
   thumbnailUrl: text('thumbnail_url').notNull().default(''),
   category: text('category').notNull().default('General'),
+  brand: text('brand').notNull().default(''),
   collectionName: text('collection_name').notNull().default(''),
+  tags: text('tags').notNull().default(''),
+  attributesJson: text('attributes_json').notNull().default('[]'),
   sku: text('sku').notNull().default(''),
   barcode: text('barcode').notNull().default(''),
   basePriceCents: integer('base_price_cents').notNull().default(0),
   compareAtPriceCents: integer('compare_at_price_cents'),
   currency: text('currency').notNull().default('RON'),
   taxRatePercent: integer('tax_rate_percent').notNull().default(19),
+  priceOnRequest: boolean('price_on_request').notNull().default(false),
   stockQuantity: integer('stock_quantity').notNull().default(0),
   reservedQuantity: integer('reserved_quantity').notNull().default(0),
   lowStockThreshold: integer('low_stock_threshold').notNull().default(5),
@@ -99,12 +103,50 @@ export const orders = pgTable('orders', {
   paymentStatus: text('payment_status').notNull().default('paid'),
   paymentMethod: text('payment_method').notNull().default('Card Online'),
   shippingMethod: text('shipping_method').notNull().default('FAN Courier'),
+  courierProvider: text('courier_provider').notNull().default(''),
   awbNumber: text('awb_number').notNull().default(''),
+  invoiceSeries: text('invoice_series').notNull().default(''),
+  invoiceNumber: text('invoice_number').notNull().default(''),
+  invoiceUrl: text('invoice_url').notNull().default(''),
   shippingCity: text('shipping_city').notNull().default('București'),
   totalCents: integer('total_cents').notNull().default(0),
   currency: text('currency').notNull().default('RON'),
   itemsCount: integer('items_count').notNull().default(1),
   notes: text('notes').notNull().default(''),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const quoteRequests = pgTable('quote_requests', {
+  id: serial('id').primaryKey(),
+  requestNumber: text('request_number').notNull().unique(),
+  productId: integer('product_id'),
+  productTitle: text('product_title').notNull(),
+  productHandle: text('product_handle').notNull().default(''),
+  customerName: text('customer_name').notNull(),
+  customerEmail: text('customer_email').notNull(),
+  customerPhone: text('customer_phone').notNull().default(''),
+  companyName: text('company_name').notNull().default(''),
+  requestedQty: integer('requested_qty').notNull().default(1),
+  message: text('message').notNull().default(''),
+  status: text('status').notNull().default('new'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const sitePages = pgTable('site_pages', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  pageType: text('page_type').notNull().default('custom_code'),
+  codeContent: text('code_content').notNull().default(''),
+  cssContent: text('css_content').notNull().default(''),
+  isPublished: boolean('is_published').notNull().default(true),
+  seoTitle: text('seo_title').notNull().default(''),
+  seoDescription: text('seo_description').notNull().default(''),
+  seoKeywords: text('seo_keywords').notNull().default(''),
+  canonicalUrl: text('canonical_url').notNull().default(''),
+  ogImageUrl: text('og_image_url').notNull().default(''),
+  noIndex: boolean('no_index').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -165,6 +207,9 @@ export const blogPosts = pgTable('blog_posts', {
   excerpt: text('excerpt').notNull().default(''),
   content: text('content').notNull().default(''),
   authorName: text('author_name').notNull().default('Echipa Editorială'),
+  seoTitle: text('seo_title').notNull().default(''),
+  seoDescription: text('seo_description').notNull().default(''),
+  seoKeywords: text('seo_keywords').notNull().default(''),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -197,6 +242,40 @@ export const storeSettings = pgTable('store_settings', {
   dataJson: text('data_json').notNull().default('{}'),
   updatedBy: text('updated_by').notNull().default(''),
   updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const mediaAssets = pgTable('media_assets', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  originalFilename: text('original_filename').notNull(),
+  url: text('url').notNull(),
+  mimeType: text('mime_type').notNull().default('image/jpeg'),
+  width: integer('width').notNull().default(0),
+  height: integer('height').notNull().default(0),
+  sizeBytes: integer('size_bytes').notNull().default(0),
+  webpUrl: text('webp_url').notNull().default(''),
+  webpSizeBytes: integer('webp_size_bytes').notNull().default(0),
+  altText: text('alt_text').notNull().default(''),
+  sourceType: text('source_type').notNull().default('upload'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const productTags = pgTable('product_tags', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  description: text('description').notNull().default(''),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const productAttributes = pgTable('product_attributes', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  valuesText: text('values_text').notNull().default(''),
+  isFilterable: boolean('is_filterable').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
 export const productsRelations = relations(products, ({ many }) => ({

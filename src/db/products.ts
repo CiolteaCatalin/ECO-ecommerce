@@ -38,13 +38,17 @@ export interface ProductUpsertInput {
   longDescription: string;
   thumbnailUrl: string;
   category: string;
+  brand?: string;
   collectionName: string;
+  tags?: string;
+  attributesJson?: string;
   sku: string;
   barcode: string;
   basePriceCents: number;
   compareAtPriceCents: number | null;
   currency: string;
   taxRatePercent: number;
+  priceOnRequest: boolean;
   stockQuantity: number;
   reservedQuantity: number;
   lowStockThreshold: number;
@@ -103,7 +107,9 @@ export async function listProducts(filters?: {
           p.title.toLowerCase().includes(q) ||
           p.handle.toLowerCase().includes(q) ||
           p.sku.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q)
+          p.category.toLowerCase().includes(q) ||
+          (p.brand || '').toLowerCase().includes(q) ||
+          (p.tags || '').toLowerCase().includes(q)
       );
     }
 
@@ -175,13 +181,17 @@ export async function createProduct(input: ProductUpsertInput) {
           longDescription: input.longDescription,
           thumbnailUrl: input.thumbnailUrl,
           category: input.category,
+          brand: input.brand ?? '',
           collectionName: input.collectionName,
+          tags: input.tags ?? '',
+          attributesJson: input.attributesJson ?? '[]',
           sku: input.sku,
           barcode: input.barcode,
           basePriceCents: input.basePriceCents,
           compareAtPriceCents: input.compareAtPriceCents,
           currency: input.currency,
           taxRatePercent: input.taxRatePercent,
+          priceOnRequest: input.priceOnRequest,
           stockQuantity: input.stockQuantity,
           reservedQuantity: input.reservedQuantity,
           lowStockThreshold: input.lowStockThreshold,
@@ -262,13 +272,17 @@ export async function updateProduct(id: number, input: ProductUpsertInput) {
           longDescription: input.longDescription,
           thumbnailUrl: input.thumbnailUrl,
           category: input.category,
+          brand: input.brand ?? '',
           collectionName: input.collectionName,
+          tags: input.tags ?? '',
+          attributesJson: input.attributesJson ?? '[]',
           sku: input.sku,
           barcode: input.barcode,
           basePriceCents: input.basePriceCents,
           compareAtPriceCents: input.compareAtPriceCents,
           currency: input.currency,
           taxRatePercent: input.taxRatePercent,
+          priceOnRequest: input.priceOnRequest,
           stockQuantity: input.stockQuantity,
           reservedQuantity: input.reservedQuantity,
           lowStockThreshold: input.lowStockThreshold,
@@ -453,14 +467,21 @@ export async function seedDemoProductsIfEmpty() {
           'Crafted from unsealed Italian Roman travertine paired with a solid brushed brass column, this architectural table lamp delivers warm 2700K ambient illumination.\n\nKey highlights:\n- Natural porous stone texture, unique per piece\n- Stepless rotary brass dimmer switch\n- Suitable for hospitality suites, architectural studios, and residential interiors',
         thumbnailUrl:
           '/src/assets/images/product_ceramic_lamp_1795418708491.jpg',
-        category: 'Lighting',
+        category: 'Iluminat Arhitectural',
+        brand: 'Atelier Travertin',
         collectionName: 'Architectural Series',
+        tags: 'travertin, horeca, iluminat-premium, b2b',
+        attributesJson: JSON.stringify([
+          { name: 'Material', value: 'Travertin Roman & Alamă' },
+          { name: 'Soclu', value: 'E27 LED Dimabil' },
+        ]),
         sku: 'LMP-TRV-001',
         barcode: '5941000001014',
         basePriceCents: 28900,
         compareAtPriceCents: 34000,
         currency: 'EUR',
         taxRatePercent: 19,
+        priceOnRequest: false,
         stockQuantity: 64,
         reservedQuantity: 6,
         lowStockThreshold: 10,
@@ -556,6 +577,7 @@ export async function seedDemoProductsIfEmpty() {
         compareAtPriceCents: 135000,
         currency: 'EUR',
         taxRatePercent: 19,
+        priceOnRequest: false,
         stockQuantity: 18,
         reservedQuantity: 2,
         lowStockThreshold: 5,
@@ -638,6 +660,7 @@ export async function seedDemoProductsIfEmpty() {
         compareAtPriceCents: null,
         currency: 'EUR',
         taxRatePercent: 19,
+        priceOnRequest: true,
         stockQuantity: 12,
         reservedQuantity: 0,
         lowStockThreshold: 4,
@@ -717,6 +740,7 @@ export async function seedDemoProductsIfEmpty() {
         compareAtPriceCents: 48000,
         currency: 'EUR',
         taxRatePercent: 19,
+        priceOnRequest: false,
         stockQuantity: 85,
         reservedQuantity: 5,
         lowStockThreshold: 15,

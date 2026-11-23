@@ -36,13 +36,17 @@ export interface ProductRecord {
   longDescription: string;
   thumbnailUrl: string;
   category: string;
+  brand?: string;
   collectionName: string;
+  tags?: string;
+  attributesJson?: string;
   sku: string;
   barcode: string;
   basePriceCents: number;
   compareAtPriceCents: number | null;
   currency: 'EUR' | 'RON' | 'USD' | 'GBP';
   taxRatePercent: number;
+  priceOnRequest: boolean;
   stockQuantity: number;
   reservedQuantity: number;
   lowStockThreshold: number;
@@ -93,7 +97,11 @@ export interface OrderRecord {
   paymentStatus: string;
   paymentMethod: string;
   shippingMethod: string;
+  courierProvider?: string;
   awbNumber: string;
+  invoiceSeries?: string;
+  invoiceNumber?: string;
+  invoiceUrl?: string;
   shippingCity: string;
   totalCents: number;
   currency: string;
@@ -167,6 +175,43 @@ export interface BlogPostRecord {
   excerpt: string;
   content: string;
   authorName: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
+  createdAt: string;
+}
+
+export interface SitePageRecord {
+  id?: number;
+  title: string;
+  slug: string;
+  pageType: 'core' | 'custom_code';
+  codeContent: string;
+  cssContent: string;
+  isPublished: boolean;
+  seoTitle: string;
+  seoDescription: string;
+  seoKeywords: string;
+  canonicalUrl: string;
+  ogImageUrl: string;
+  noIndex: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface QuoteRequestRecord {
+  id: number;
+  requestNumber: string;
+  productId: number | null;
+  productTitle: string;
+  productHandle: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  companyName: string;
+  requestedQty: number;
+  message: string;
+  status: 'new' | 'quoted' | 'closed';
   createdAt: string;
 }
 
@@ -192,6 +237,40 @@ export interface ModuleItemRecord {
   createdAt: string;
 }
 
+export interface MediaAssetRecord {
+  id: number;
+  title: string;
+  slug: string;
+  originalFilename: string;
+  url: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  webpUrl: string;
+  webpSizeBytes: number;
+  altText: string;
+  sourceType: string;
+  createdAt: string;
+}
+
+export interface ProductTagRecord {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  createdAt?: string;
+}
+
+export interface ProductAttributeRecord {
+  id: number;
+  name: string;
+  slug: string;
+  valuesText: string;
+  isFilterable: boolean;
+  createdAt?: string;
+}
+
 export interface DashboardSummary {
   kpis: {
     pendingOrders: number;
@@ -204,6 +283,9 @@ export interface DashboardSummary {
     totalProducts: number;
     outOfStockProducts: number;
     publishedProducts: number;
+    priceOnRequestProducts?: number;
+    quoteRequestsNew?: number;
+    sitePagesCount?: number;
     totalCategories: number;
     totalBrands: number;
     totalCustomers: number;
@@ -252,13 +334,17 @@ export function createEmptyProduct(): ProductRecord {
     longDescription: '',
     thumbnailUrl: '',
     category: 'General',
+    brand: '',
     collectionName: '',
+    tags: '',
+    attributesJson: '[]',
     sku: '',
     barcode: '',
     basePriceCents: 10000,
     compareAtPriceCents: null,
     currency: 'RON',
     taxRatePercent: 19,
+    priceOnRequest: false,
     stockQuantity: 25,
     reservedQuantity: 0,
     lowStockThreshold: 5,

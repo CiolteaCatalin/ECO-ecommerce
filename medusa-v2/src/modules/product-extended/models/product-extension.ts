@@ -6,6 +6,7 @@ const ProductExtension = model.define('product_extension', {
   id: model.id().primaryKey(),
   short_description: model.text().default(''),
   long_description: model.text().default(''),
+  price_on_request: model.boolean().default(false),
   min_order_qty: model.number().default(1),
   max_order_qty: model.number().nullable(),
   step_qty: model.number().default(1),

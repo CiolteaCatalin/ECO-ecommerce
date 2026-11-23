@@ -7,9 +7,14 @@ import {
   categories,
   coupons,
   customers,
+  mediaAssets,
   moduleItems,
   orders,
+  productAttributes,
   products,
+  productTags,
+  quoteRequests,
+  sitePages,
   storeSettings,
 } from './schema.ts';
 
@@ -430,6 +435,196 @@ export async function seedWorkspaceDataIfEmpty() {
         },
       ]);
     }
+
+    const existingPages = await db.select({ id: sitePages.id }).from(sitePages).limit(1);
+    if (existingPages.length === 0) {
+      await db.insert(sitePages).values([
+        {
+          title: 'Acasă (Homepage)',
+          slug: '/',
+          pageType: 'core',
+          codeContent: '',
+          cssContent: '',
+          isPublished: true,
+          seoTitle: 'Verda Commerce | Iluminat Arhitectural & Mobilier Nordic',
+          seoDescription: 'Descoperă corpuri de iluminat din travertin, mobilier scandinav și echipamente profesionale cu livrare rapidă și oferte B2B.',
+          seoKeywords: 'iluminat arhitectural, mobilier nordic, verda commerce, oferte b2b',
+          canonicalUrl: 'https://magazin.verda-commerce.ro/',
+          ogImageUrl: '/src/assets/images/product_ceramic_lamp_1795418708491.jpg',
+          noIndex: false,
+        },
+        {
+          title: 'Catalog Produse',
+          slug: '/catalog',
+          pageType: 'core',
+          codeContent: '',
+          cssContent: '',
+          isPublished: true,
+          seoTitle: 'Catalog Produse | Verda Commerce',
+          seoDescription: 'Toate produsele disponibile cu prețuri pe volum, stoc în timp real sau solicitare ofertă personalizată.',
+          seoKeywords: 'catalog produse, pret la cerere, mobilier, iluminat',
+          canonicalUrl: 'https://magazin.verda-commerce.ro/catalog',
+          ogImageUrl: '',
+          noIndex: false,
+        },
+        {
+          title: 'Blog & Ghiduri',
+          slug: '/blog',
+          pageType: 'core',
+          codeContent: '',
+          cssContent: '',
+          isPublished: true,
+          seoTitle: 'Blog Design & Arhitectură | Verda Commerce',
+          seoDescription: 'Articole practice despre amenajări HoReCa, iluminat natural și alegerea materialelor durabile.',
+          seoKeywords: 'blog design interior, ghid iluminat, amenajari horeca',
+          canonicalUrl: 'https://magazin.verda-commerce.ro/blog',
+          ogImageUrl: '',
+          noIndex: false,
+        },
+        {
+          title: 'Contact & Cerere Ofertă',
+          slug: '/contact',
+          pageType: 'core',
+          codeContent: '',
+          cssContent: '',
+          isPublished: true,
+          seoTitle: 'Contact și Solicitări Ofertă | Verda Commerce',
+          seoDescription: 'Contactează echipa noastră comercială pentru proiecte speciale și produse cu preț la cerere.',
+          seoKeywords: 'contact verda, cerere oferta, proiecte b2b',
+          canonicalUrl: 'https://magazin.verda-commerce.ro/contact',
+          ogImageUrl: '',
+          noIndex: false,
+        },
+        {
+          title: 'Proiecte HoReCa & Ofertă Personalizată',
+          slug: '/proiecte-horeca',
+          pageType: 'custom_code',
+          codeContent: `<section class="hero-box">
+  <span class="eyebrow">DIVIZIA B2B &amp; ARHITECTURĂ</span>
+  <h1>Soluții complete de iluminat și mobilier la comandă</h1>
+  <p>Colaborăm cu studiouri de arhitectură, hoteluri și restaurante pentru dotări personalizate cu preț la cerere.</p>
+  <a href="#cerere-oferta" class="cta-btn">Solicită ofertă dedicată</a>
+</section>
+<section class="grid-benefits">
+  <div class="card">
+    <h3>Consultanță tehnică</h3>
+    <p>Calcul luminotehnic și mostre de materiale livrate în 48h.</p>
+  </div>
+  <div class="card">
+    <h3>Prețuri pe volum</h3>
+    <p>Discounturi progresive și termene flexibile pentru proiecte mari.</p>
+  </div>
+  <div class="card">
+    <h3>Livrare paletizată</h3>
+    <p>Transport asigurat oriunde în România și Uniunea Europeană.</p>
+  </div>
+</section>`,
+          cssContent: `body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 32px; background: #f4f8fd; color: #0f172a; }
+.hero-box { background: #ffffff; border: 1px solid #dbeafe; border-radius: 16px; padding: 36px; margin-bottom: 24px; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #2563eb; }
+h1 { font-size: 28px; margin: 10px 0 12px; color: #0f172a; }
+p { font-size: 15px; line-height: 1.6; color: #475569; max-width: 640px; }
+.cta-btn { display: inline-block; margin-top: 14px; padding: 11px 20px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 10px; font-size: 14px; font-weight: 600; }
+.grid-benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+.card h3 { margin: 0 0 8px; font-size: 16px; color: #1e3a8a; }
+.card p { margin: 0; font-size: 13px; }`,
+          isPublished: true,
+          seoTitle: 'Proiecte HoReCa & Mobilier la Comandă | Verda Commerce',
+          seoDescription: 'Dotări complete pentru hoteluri, restaurante și birouri. Cere o ofertă personalizată direct din platformă.',
+          seoKeywords: 'proiecte horeca, mobilier la comanda, pret la cerere b2b',
+          canonicalUrl: 'https://magazin.verda-commerce.ro/proiecte-horeca',
+          ogImageUrl: '',
+          noIndex: false,
+        },
+        {
+          title: 'Despre Noi & Livrare',
+          slug: '/despre-noi',
+          pageType: 'custom_code',
+          codeContent: `<div class="about-wrap">
+  <h1>Despre Verda Commerce</h1>
+  <p>Suntem un atelier și distribuitor românesc dedicat pieselor arhitecturale autentice din piatră naturală, lemn masiv și aluminiu prelucrat CNC.</p>
+  <ul>
+    <li>Livrare rapidă din depozitul din București</li>
+    <li>Garanție 36 luni pentru toate produsele</li>
+    <li>Suport dedicat pentru arhitecți și persoane juridice</li>
+  </ul>
+</div>`,
+          cssContent: `body { font-family: system-ui, sans-serif; padding: 32px; background: #f4f8fd; color: #0f172a; }
+.about-wrap { background: #fff; border: 1px solid #dbeafe; border-radius: 14px; padding: 32px; max-width: 720px; }
+h1 { margin-top: 0; color: #1e3a8a; }
+ul { padding-left: 20px; color: #334155; line-height: 1.8; }`,
+          isPublished: true,
+          seoTitle: 'Despre Noi | Verda Commerce România',
+          seoDescription: 'Află povestea noastră, standardele de calitate și condițiile de livrare în toată țara.',
+          seoKeywords: 'despre verda commerce, livrare, garantie',
+          canonicalUrl: 'https://magazin.verda-commerce.ro/despre-noi',
+          ogImageUrl: '',
+          noIndex: false,
+        },
+      ]);
+    }
+
+    const existingQuotes = await db
+      .select({ id: quoteRequests.id })
+      .from(quoteRequests)
+      .limit(1);
+    if (existingQuotes.length === 0) {
+      await db.insert(quoteRequests).values([
+        {
+          requestNumber: 'OFR-2026-041',
+          productId: null,
+          productTitle: 'Nordic Smoked Oak & Bouclé Lounge Chair',
+          productHandle: 'nordic-smoked-oak-boucle-chair',
+          customerName: 'Cristina Vasilescu',
+          customerEmail: 'cristina@atelier-spatiu.ro',
+          customerPhone: '0724 812 390',
+          companyName: 'SC Atelier Spațiu SRL',
+          requestedQty: 14,
+          message: 'Avem nevoie de ofertă cu tapițerie ignifugă pentru lobby hotel din Sinaia.',
+          status: 'new',
+        },
+        {
+          requestNumber: 'OFR-2026-040',
+          productId: null,
+          productTitle: 'Travertine Architectural Table Lamp',
+          productHandle: 'travertine-architectural-table-lamp',
+          customerName: 'Bogdan Stanciu',
+          customerEmail: 'bogdan@bistro-nord.ro',
+          customerPhone: '0740 551 200',
+          companyName: 'Bistro Nord Concept',
+          requestedQty: 25,
+          message: 'Solicităm cotație și termen de livrare pentru 25 bucăți.',
+          status: 'quoted',
+        },
+      ]);
+    }
+
+    const existingTags = await db
+      .select({ id: productTags.id })
+      .from(productTags)
+      .limit(1);
+    if (existingTags.length === 0) {
+      await db.insert(productTags).values([
+        { name: 'Colecție 2026', slug: 'colectie-2026', description: 'Produse noi adăugate în sezonul curent' },
+        { name: 'B2B & HoReCa', slug: 'b2b-horeca', description: 'Produse recomandate pentru proiecte comerciale' },
+        { name: 'Preț la cerere', slug: 'pret-la-cerere', description: 'Produse configurabile pe bază de ofertă' },
+        { name: 'Livrare Rapidă 24h', slug: 'livrare-rapida-24h', description: 'În stoc fizic pentru expediere imediată' },
+      ]);
+    }
+
+    const existingAttrs = await db
+      .select({ id: productAttributes.id })
+      .from(productAttributes)
+      .limit(1);
+    if (existingAttrs.length === 0) {
+      await db.insert(productAttributes).values([
+        { name: 'Material Principal', slug: 'material-principal', valuesText: 'Travertin Roman, Stejar Afumat, Aluminiu CNC, Oțel Inox', isFilterable: true },
+        { name: 'Finisaj', slug: 'finisaj', valuesText: 'Alamă Periată, Negru Mat, Crem Bouclé, Nuc American', isFilterable: true },
+        { name: 'Garanție', slug: 'garantie', valuesText: '24 luni, 36 luni, 10 ani structură', isFilterable: false },
+        { name: 'Tensiune Alimentare', slug: 'tensiune-alimentare', valuesText: '220-240V EU, USB-C, LED 2700K', isFilterable: true },
+      ]);
+    }
   } catch (error) {
     console.error('Failed to seed workspace data:', error);
   }
@@ -519,9 +714,23 @@ export async function createOrder(input: {
   }
 }
 
+export async function getOrderById(id: number) {
+  const rows = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
 export async function updateOrderStatus(
   id: number,
-  updates: { status?: string; returnStatus?: string; awbNumber?: string }
+  updates: {
+    status?: string;
+    returnStatus?: string;
+    awbNumber?: string;
+    courierProvider?: string;
+    shippingMethod?: string;
+    invoiceSeries?: string;
+    invoiceNumber?: string;
+    invoiceUrl?: string;
+  }
 ) {
   try {
     const [updated] = await db
@@ -530,6 +739,11 @@ export async function updateOrderStatus(
         ...(updates.status ? { status: updates.status } : {}),
         ...(updates.returnStatus ? { returnStatus: updates.returnStatus } : {}),
         ...(updates.awbNumber !== undefined ? { awbNumber: updates.awbNumber } : {}),
+        ...(updates.courierProvider !== undefined ? { courierProvider: updates.courierProvider } : {}),
+        ...(updates.shippingMethod !== undefined ? { shippingMethod: updates.shippingMethod } : {}),
+        ...(updates.invoiceSeries !== undefined ? { invoiceSeries: updates.invoiceSeries } : {}),
+        ...(updates.invoiceNumber !== undefined ? { invoiceNumber: updates.invoiceNumber } : {}),
+        ...(updates.invoiceUrl !== undefined ? { invoiceUrl: updates.invoiceUrl } : {}),
         updatedAt: new Date(),
       })
       .where(eq(orders.id, id))
@@ -766,9 +980,38 @@ export async function createBlogPost(input: {
   excerpt: string;
   content: string;
   authorName: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
 }) {
-  const [created] = await db.insert(blogPosts).values(input).returning();
+  const [created] = await db.insert(blogPosts).values({
+    ...input,
+    seoTitle: input.seoTitle ?? '',
+    seoDescription: input.seoDescription ?? '',
+    seoKeywords: input.seoKeywords ?? '',
+  }).returning();
   return created;
+}
+
+export async function updateBlogPost(
+  id: number,
+  input: {
+    title?: string;
+    category?: string;
+    status?: string;
+    excerpt?: string;
+    content?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+    seoKeywords?: string;
+  }
+) {
+  const [updated] = await db
+    .update(blogPosts)
+    .set(input)
+    .where(eq(blogPosts.id, id))
+    .returning();
+  return updated ?? null;
 }
 
 export async function deleteBlogPost(id: number) {
@@ -777,6 +1020,102 @@ export async function deleteBlogPost(id: number) {
     .where(eq(blogPosts.id, id))
     .returning();
   return deleted ?? null;
+}
+
+export async function listSitePages() {
+  return db.select().from(sitePages).orderBy(sitePages.pageType, sitePages.id);
+}
+
+export async function createSitePage(input: {
+  title: string;
+  slug: string;
+  pageType: 'core' | 'custom_code';
+  codeContent: string;
+  cssContent: string;
+  isPublished: boolean;
+  seoTitle: string;
+  seoDescription: string;
+  seoKeywords: string;
+  canonicalUrl: string;
+  ogImageUrl: string;
+  noIndex: boolean;
+}) {
+  const [created] = await db.insert(sitePages).values(input).returning();
+  return created;
+}
+
+export async function updateSitePage(
+  id: number,
+  input: {
+    title: string;
+    slug: string;
+    codeContent: string;
+    cssContent: string;
+    isPublished: boolean;
+    seoTitle: string;
+    seoDescription: string;
+    seoKeywords: string;
+    canonicalUrl: string;
+    ogImageUrl: string;
+    noIndex: boolean;
+  }
+) {
+  const [updated] = await db
+    .update(sitePages)
+    .set({
+      ...input,
+      updatedAt: new Date(),
+    })
+    .where(eq(sitePages.id, id))
+    .returning();
+  return updated ?? null;
+}
+
+export async function deleteSitePage(id: number) {
+  const [deleted] = await db
+    .delete(sitePages)
+    .where(eq(sitePages.id, id))
+    .returning();
+  return deleted ?? null;
+}
+
+export async function listQuoteRequests() {
+  return db.select().from(quoteRequests).orderBy(desc(quoteRequests.id));
+}
+
+export async function createQuoteRequest(input: {
+  productId: number | null;
+  productTitle: string;
+  productHandle: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  companyName: string;
+  requestedQty: number;
+  message: string;
+}) {
+  const requestNumber = `OFR-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+  const [created] = await db
+    .insert(quoteRequests)
+    .values({
+      ...input,
+      requestNumber,
+      status: 'new',
+    })
+    .returning();
+  return created;
+}
+
+export async function updateQuoteRequestStatus(
+  id: number,
+  status: 'new' | 'quoted' | 'closed'
+) {
+  const [updated] = await db
+    .update(quoteRequests)
+    .set({ status })
+    .where(eq(quoteRequests.id, id))
+    .returning();
+  return updated ?? null;
 }
 
 export async function listModuleItems(moduleKey: string) {
@@ -853,16 +1192,130 @@ export async function upsertStoreSetting(
   return saved;
 }
 
+export async function listProductTags() {
+  return db.select().from(productTags).orderBy(desc(productTags.id));
+}
+
+export async function createProductTag(input: {
+  name: string;
+  slug: string;
+  description: string;
+}) {
+  const [created] = await db.insert(productTags).values(input).returning();
+  return created;
+}
+
+export async function deleteProductTag(id: number) {
+  const [deleted] = await db
+    .delete(productTags)
+    .where(eq(productTags.id, id))
+    .returning();
+  return deleted ?? null;
+}
+
+export async function listProductAttributes() {
+  return db.select().from(productAttributes).orderBy(desc(productAttributes.id));
+}
+
+export async function createProductAttribute(input: {
+  name: string;
+  slug: string;
+  valuesText: string;
+  isFilterable: boolean;
+}) {
+  const [created] = await db.insert(productAttributes).values(input).returning();
+  return created;
+}
+
+export async function deleteProductAttribute(id: number) {
+  const [deleted] = await db
+    .delete(productAttributes)
+    .where(eq(productAttributes.id, id))
+    .returning();
+  return deleted ?? null;
+}
+
+export async function listMediaAssets() {
+  return db.select().from(mediaAssets).orderBy(desc(mediaAssets.id));
+}
+
+export async function getMediaAssetById(id: number) {
+  const rows = await db
+    .select()
+    .from(mediaAssets)
+    .where(eq(mediaAssets.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createMediaAsset(input: {
+  title: string;
+  slug: string;
+  originalFilename: string;
+  url: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  webpUrl?: string;
+  webpSizeBytes?: number;
+  altText?: string;
+  sourceType?: string;
+}) {
+  const [created] = await db
+    .insert(mediaAssets)
+    .values({
+      ...input,
+      webpUrl: input.webpUrl ?? '',
+      webpSizeBytes: input.webpSizeBytes ?? 0,
+      altText: input.altText ?? '',
+      sourceType: input.sourceType ?? 'upload',
+    })
+    .returning();
+  return created;
+}
+
+export async function updateMediaAssetWebp(
+  id: number,
+  webpUrl: string,
+  webpSizeBytes: number
+) {
+  const [updated] = await db
+    .update(mediaAssets)
+    .set({ webpUrl, webpSizeBytes })
+    .where(eq(mediaAssets.id, id))
+    .returning();
+  return updated ?? null;
+}
+
+export async function deleteMediaAsset(id: number) {
+  const [deleted] = await db
+    .delete(mediaAssets)
+    .where(eq(mediaAssets.id, id))
+    .returning();
+  return deleted ?? null;
+}
+
 export async function getDashboardSummary() {
-  const [allOrders, allCustomers, allProducts, allCategories, allBrands, allLogs] =
-    await Promise.all([
-      db.select().from(orders).orderBy(desc(orders.id)),
-      db.select().from(customers).orderBy(desc(customers.id)),
-      db.select().from(products),
-      db.select().from(categories),
-      db.select().from(brands),
-      db.select().from(auditLogs).orderBy(desc(auditLogs.id)).limit(50),
-    ]);
+  const [
+    allOrders,
+    allCustomers,
+    allProducts,
+    allCategories,
+    allBrands,
+    allLogs,
+    allQuotes,
+    allPages,
+  ] = await Promise.all([
+    db.select().from(orders).orderBy(desc(orders.id)),
+    db.select().from(customers).orderBy(desc(customers.id)),
+    db.select().from(products),
+    db.select().from(categories),
+    db.select().from(brands),
+    db.select().from(auditLogs).orderBy(desc(auditLogs.id)).limit(50),
+    db.select().from(quoteRequests).orderBy(desc(quoteRequests.id)),
+    db.select().from(sitePages),
+  ]);
 
   const totalRevenueCents = allOrders
     .filter((o) => o.status !== 'returned')
@@ -883,6 +1336,9 @@ export async function getDashboardSummary() {
       totalProducts: allProducts.length,
       outOfStockProducts: allProducts.filter((p) => p.stockQuantity <= 0).length,
       publishedProducts: allProducts.filter((p) => p.status === 'published').length,
+      priceOnRequestProducts: allProducts.filter((p) => p.priceOnRequest).length,
+      quoteRequestsNew: allQuotes.filter((q) => q.status === 'new').length,
+      sitePagesCount: allPages.length,
       totalCategories: allCategories.length,
       totalBrands: allBrands.length,
       totalCustomers: allCustomers.length,

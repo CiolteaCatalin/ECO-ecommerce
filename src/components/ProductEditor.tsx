@@ -1,24 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   Eye,
+  FileQuestion,
+  Image as ImageIcon,
   Minus,
   Plus,
   Save,
   Star,
   Trash2,
+  X,
 } from 'lucide-react';
 import {
   formatMoney,
   STUDIO_IMAGE_PRESETS,
+  type BrandRecord,
+  type CategoryRecord,
+  type ProductAttributeRecord,
   type ProductRecord,
   type ProductStatus,
+  type ProductTagRecord,
   type TierCalculationResult,
 } from '../types/commerce';
 import { useAuth } from '../context/AuthContext';
 import { ProductImage } from './ProductImage';
+import { MediaLibraryWorkspace } from './MediaLibraryWorkspace';
 
 interface ProductEditorProps {
   initialProduct: ProductRecord;
@@ -38,7 +46,7 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: 'general', label: 'General & Descrieri' },
   { id: 'media', label: 'Poze & Galerie' },
   { id: 'inventory', label: 'Stocuri & Min/Max/Step' },
-  { id: 'pricing', label: 'Prețuri & Praguri (Tiered)' },
+  { id: 'pricing', label: 'Prețuri & Preț la cerere' },
   { id: 'variants', label: 'Variante' },
   { id: 'seo', label: 'SEO & OpenGraph' },
 ];
@@ -74,6 +82,88 @@ export function ProductEditor({
     null
   );
   const [calcLoading, setCalcLoading] = useState(false);
+  const [mediaModalOpen, setMediaModalOpen] = useState(false);
+
+  const [savedCategories, setSavedCategories] = useState<CategoryRecord[]>([]);
+  const [savedBrands, setSavedBrands] = useState<BrandRecord[]>([]);
+  const [savedTags, setSavedTags] = useState<ProductTagRecord[]>([]);
+  const [savedAttributes, setSavedAttributes] = useState<ProductAttributeRecord[]>([]);
+  const [newAttrName, setNewAttrName] = useState('');
+  const [newAttrVal, setNewAttrVal] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [cRes, bRes, tRes, aRes] = await Promise.all([
+          authFetch('/api/admin/categories'),
+          authFetch('/api/admin/brands'),
+          authFetch('/api/admin/tags'),
+          authFetch('/api/admin/attributes'),
+        ]);
+        if (!active) return;
+        if (cRes.ok) {
+          const d = await cRes.json();
+          setSavedCategories(d.categories ?? []);
+        }
+        if (bRes.ok) {
+          const d = await bRes.json();
+          setSavedBrands(d.brands ?? []);
+        }
+        if (tRes.ok) {
+          const d = await tRes.json();
+          setSavedTags(d.tags ?? []);
+        }
+        if (aRes.ok) {
+          const d = await aRes.json();
+          setSavedAttributes(d.attributes ?? []);
+        }
+      } catch {
+        // ignore taxonomy prefetch failure
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [authFetch]);
+
+  const parsedAttributes = useMemo<Array<{ name: string; value: string }>>(() => {
+    try {
+      const raw = JSON.parse(form.attributesJson || '[]');
+      if (Array.isArray(raw)) {
+        return raw.map((item) => ({
+          name: String(item?.name || ''),
+          value: String(item?.value || ''),
+        }));
+      }
+    } catch {
+      // ignore invalid JSON
+    }
+    return [];
+  }, [form.attributesJson]);
+
+  const setProductAttributes = (next: Array<{ name: string; value: string }>) => {
+    updateField('attributesJson', JSON.stringify(next));
+  };
+
+  const activeTagsList = useMemo(
+    () =>
+      (form.tags || '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean),
+    [form.tags]
+  );
+
+  const toggleProductTag = (tagName: string) => {
+    const exists = activeTagsList.some(
+      (t) => t.toLowerCase() === tagName.toLowerCase()
+    );
+    const next = exists
+      ? activeTagsList.filter((t) => t.toLowerCase() !== tagName.toLowerCase())
+      : [...activeTagsList, tagName];
+    updateField('tags', next.join(', '));
+  };
 
   const isEditing = Boolean(form.id);
 
@@ -95,13 +185,22 @@ export function ProductEditor({
     );
 
     const errors: string[] = [];
+    if (form.priceOnRequest) {
+      errors.push('Produs configurat cu Preț la cerere — necesită cerere de ofertă.');
+    }
     if (simQty < min) errors.push(`Cantitatea minimă de comandă este ${min}.`);
     if (max !== null && simQty > max)
       errors.push(`Cantitatea maximă de comandă este ${max}.`);
     if ((simQty - min) % step !== 0)
       errors.push(`Cantitatea trebuie să crească în pași de ${step} începând de la ${min}.`);
-    if (form.manageInventory && !form.allowBackorder && simQty > availableStock)
+    if (
+      !form.priceOnRequest &&
+      form.manageInventory &&
+      !form.allowBackorder &&
+      simQty > availableStock
+    ) {
       errors.push(`Depășește stocul disponibil (${availableStock} buc.).`);
+    }
 
     const matchedTier = [...form.priceTiers]
       .sort((a, b) => b.minQty - a.minQty)
@@ -150,7 +249,8 @@ export function ProductEditor({
   const handleAddGalleryImage = (urlToAdd?: string, altToAdd?: string) => {
     const url = (urlToAdd ?? newImageUrl).trim();
     if (!url) return;
-    const altText = (altToAdd ?? newImageAlt).trim() || form.title || 'Fotografie produs';
+    const altText =
+      (altToAdd ?? newImageAlt).trim() || form.title || 'Fotografie produs';
     const nextImages = [
       ...form.galleryImages,
       {
@@ -262,7 +362,9 @@ export function ProductEditor({
       await onSave(form);
       setSaveSuccess(true);
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Eroare la salvarea produsului.');
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Eroare la salvarea produsului.'
+      );
     } finally {
       setSaving(false);
     }
@@ -279,23 +381,23 @@ export function ProductEditor({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-white border border-teal-900/10 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Înapoi</span>
           </button>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-[#0F2928] truncate">
-              {form.title || 'Produs nou extins'}
+            <h2 className="text-base font-semibold text-slate-900 truncate">
+              {form.title || 'Produs nou'}
             </h2>
             <div className="text-xs text-slate-500 font-mono truncate">
-              {form.medusaProductId ? `${form.medusaProductId} · ` : ''}
               /{form.handle || 'handle-nesalvat'}
+              {form.priceOnRequest ? ' · Preț la cerere (doar ofertă)' : ''}
             </div>
           </div>
         </div>
@@ -307,7 +409,7 @@ export function ProductEditor({
               updateField('status', e.target.value as ProductStatus)
             }
             aria-label="Status produs"
-            className="px-3 py-2 text-xs font-medium bg-[#F7FBFA] border border-teal-900/15 rounded-lg text-[#0F2928] focus:outline-none focus:border-teal-600"
+            className="px-3 py-2 text-xs font-medium bg-[#F4F8FD] border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:bg-white focus:border-blue-500"
           >
             <option value="draft">Ciornă</option>
             <option value="published">Publicat</option>
@@ -317,7 +419,7 @@ export function ProductEditor({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 rounded-lg transition-colors whitespace-nowrap shrink-0"
           >
             <Save className="w-3.5 h-3.5" />
             <span>
@@ -338,12 +440,12 @@ export function ProductEditor({
       )}
 
       {saveSuccess && (
-        <div className="bg-teal-50 border border-teal-200 rounded-xl px-4 py-3 text-sm text-teal-900">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-900">
           Produsul a fost salvat în PostgreSQL și sincronizat cu API-ul storefront.
         </div>
       )}
 
-      <div className="flex items-center gap-1 p-1 bg-[#E7F3F1] rounded-lg overflow-x-auto">
+      <div className="flex items-center gap-1 p-1 bg-[#EAF2FC] rounded-lg overflow-x-auto">
         {TABS.map((tab) => {
           const active = activeTab === tab.id;
           return (
@@ -353,8 +455,8 @@ export function ProductEditor({
               onClick={() => setActiveTab(tab.id)}
               className={`px-3.5 py-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 active
-                  ? 'bg-white text-teal-900 shadow-xs'
-                  : 'text-slate-600 hover:text-teal-900'
+                  ? 'bg-white text-blue-900 shadow-xs'
+                  : 'text-slate-600 hover:text-blue-900'
               }`}
             >
               {tab.label}
@@ -365,7 +467,7 @@ export function ProductEditor({
 
       {activeTab === 'general' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-8 bg-white border border-teal-900/10 rounded-xl p-6 space-y-5">
+          <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-6 space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">
@@ -386,7 +488,7 @@ export function ProductEditor({
                     }));
                   }}
                   placeholder="ex: Lampă de masă din travertin"
-                  className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+                  className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
 
@@ -399,7 +501,7 @@ export function ProductEditor({
                   value={form.subtitle}
                   onChange={(e) => updateField('subtitle', e.target.value)}
                   placeholder="Subtitlu scurt produs"
-                  className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+                  className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
 
@@ -413,7 +515,7 @@ export function ProductEditor({
                     onClick={() =>
                       updateField('handle', slugifyHandle(form.title))
                     }
-                    className="text-xs font-medium text-teal-700 hover:text-teal-800"
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
                   >
                     Generează automat
                   </button>
@@ -425,7 +527,7 @@ export function ProductEditor({
                     updateField('handle', slugifyHandle(e.target.value))
                   }
                   placeholder="lampa-travertin"
-                  className="w-full px-3 py-2 text-sm font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+                  className="w-full px-3 py-2 text-sm font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
             </div>
@@ -446,7 +548,7 @@ export function ProductEditor({
                   updateField('shortDescription', e.target.value)
                 }
                 placeholder="Rezumat concis al avantajelor și materialelor..."
-                className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+                className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
               />
             </div>
 
@@ -458,15 +560,18 @@ export function ProductEditor({
                 <button
                   type="button"
                   onClick={() => setPreviewLongDesc((v) => !v)}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-900"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>{previewLongDesc ? 'Editează text' : 'Previzualizează'}</span>
+                  <span>
+                    {previewLongDesc ? 'Editează text' : 'Previzualizează'}
+                  </span>
                 </button>
               </div>
               {previewLongDesc ? (
-                <div className="min-h-[200px] p-4 bg-[#F7FBFA] border border-teal-900/15 rounded-lg text-sm text-[#0F2928] whitespace-pre-wrap leading-relaxed">
-                  {form.longDescription || 'Nu a fost completată descrierea lungă.'}
+                <div className="min-h-[200px] p-4 bg-[#F4F8FD] border border-slate-200 rounded-lg text-sm text-slate-900 whitespace-pre-wrap leading-relaxed">
+                  {form.longDescription ||
+                    'Nu a fost completată descrierea lungă.'}
                 </div>
               ) : (
                 <textarea
@@ -476,48 +581,260 @@ export function ProductEditor({
                     updateField('longDescription', e.target.value)
                   }
                   placeholder="Specificații tehnice, dimensiuni, instrucțiuni de întreținere..."
-                  className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600 leading-relaxed"
+                  className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 leading-relaxed"
                 />
               )}
             </div>
           </div>
 
-          <div className="lg:col-span-4 bg-white border border-teal-900/10 rounded-xl p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-[#0F2928]">
-              Organizare &amp; Atribute JSON
-            </h3>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                Categorie
+          <div className="lg:col-span-4 space-y-5">
+            {/* Card Mod vânzare: Preț la cerere */}
+            <div className="bg-white border border-blue-200 rounded-xl p-5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <FileQuestion className="w-4 h-4 text-blue-600 shrink-0" />
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Mod afișare preț &amp; comandă
+                  </h3>
+                </div>
+              </div>
+              <label className="flex items-start gap-2.5 p-3 rounded-lg bg-[#F4F8FD] border border-blue-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.priceOnRequest}
+                  onChange={(e) =>
+                    updateField('priceOnRequest', e.target.checked)
+                  }
+                  className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div className="text-xs leading-relaxed">
+                  <div className="font-semibold text-slate-900">
+                    Afișează ca „Preț la cerere”
+                  </div>
+                  <div className="text-slate-600 mt-0.5">
+                    Produsul este public și vizibil în magazin, dar nu poate fi comandat online; clienții pot doar să ceară ofertă.
+                  </div>
+                </div>
               </label>
-              <input
-                type="text"
-                value={form.category}
-                onChange={(e) => updateField('category', e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
-              />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                Colecție
-              </label>
-              <input
-                type="text"
-                value={form.collectionName}
-                onChange={(e) => updateField('collectionName', e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                Câmpuri adiționale (Metadata JSON)
-              </label>
-              <textarea
-                rows={6}
-                value={form.metadataJson}
-                onChange={(e) => updateField('metadataJson', e.target.value)}
-                className="w-full px-3 py-2 text-xs font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
-              />
+
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Organizare, Brand, Etichete &amp; Atribute
+              </h3>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-slate-700">
+                    Categorie
+                  </label>
+                  {savedCategories.length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) updateField('category', e.target.value);
+                      }}
+                      className="text-[11px] text-blue-700 bg-transparent focus:outline-none"
+                      aria-label="Alege categorie salvată"
+                    >
+                      <option value="">Alege din listă...</option>
+                      {savedCategories.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={form.category}
+                  onChange={(e) => updateField('category', e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-slate-700">
+                    Brand / Producător
+                  </label>
+                  {savedBrands.length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) updateField('brand', e.target.value);
+                      }}
+                      className="text-[11px] text-blue-700 bg-transparent focus:outline-none"
+                      aria-label="Alege brand salvat"
+                    >
+                      <option value="">Alege brand...</option>
+                      {savedBrands.map((b) => (
+                        <option key={b.id} value={b.name}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={form.brand ?? ''}
+                  onChange={(e) => updateField('brand', e.target.value)}
+                  placeholder="ex: Verda Atelier"
+                  className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Colecție
+                </label>
+                <input
+                  type="text"
+                  value={form.collectionName}
+                  onChange={(e) =>
+                    updateField('collectionName', e.target.value)
+                  }
+                  className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Etichete (separate prin virgulă)
+                </label>
+                <input
+                  type="text"
+                  value={form.tags ?? ''}
+                  onChange={(e) => updateField('tags', e.target.value)}
+                  placeholder="ex: Nou, B2B, Stoc Rapid"
+                  className="w-full px-3 py-2 text-xs bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+                />
+                {savedTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {savedTags.map((t) => {
+                      const active = activeTagsList.some(
+                        (x) => x.toLowerCase() === t.name.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => toggleProductTag(t.name)}
+                          className={`px-2 py-0.5 text-[11px] font-medium rounded border transition-colors ${
+                            active
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-[#F4F8FD] text-slate-600 border-slate-200 hover:border-blue-400'
+                          }`}
+                        >
+                          {t.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-800">
+                    Atribute produs
+                  </label>
+                  {savedAttributes.length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const attr = savedAttributes.find(
+                          (a) => a.name === e.target.value
+                        );
+                        if (attr) {
+                          setNewAttrName(attr.name);
+                          const firstVal = attr.valuesText.split(',')[0]?.trim() || '';
+                          setNewAttrVal(firstVal);
+                        }
+                      }}
+                      className="text-[11px] text-blue-700 bg-transparent focus:outline-none"
+                    >
+                      <option value="">Preset atribut...</option>
+                      {savedAttributes.map((a) => (
+                        <option key={a.id} value={a.name}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {parsedAttributes.length > 0 && (
+                  <div className="space-y-1.5">
+                    {parsedAttributes.map((attr, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-xs">
+                        <span className="px-2 py-1 bg-[#F4F8FD] border border-slate-200 rounded font-medium text-slate-700 shrink-0">
+                          {attr.name}
+                        </span>
+                        <span className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 truncate">
+                          {attr.value}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setProductAttributes(
+                              parsedAttributes.filter((_, idx) => idx !== i)
+                            )
+                          }
+                          className="p-1 text-slate-400 hover:text-red-600"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={newAttrName}
+                    onChange={(e) => setNewAttrName(e.target.value)}
+                    placeholder="Atribut (ex: Material)"
+                    className="w-1/2 px-2.5 py-1.5 text-xs bg-[#F4F8FD] border border-slate-200 rounded-md"
+                  />
+                  <input
+                    type="text"
+                    value={newAttrVal}
+                    onChange={(e) => setNewAttrVal(e.target.value)}
+                    placeholder="Valoare (ex: Stejar)"
+                    className="w-1/2 px-2.5 py-1.5 text-xs bg-[#F4F8FD] border border-slate-200 rounded-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newAttrName.trim() || !newAttrVal.trim()) return;
+                      setProductAttributes([
+                        ...parsedAttributes,
+                        { name: newAttrName.trim(), value: newAttrVal.trim() },
+                      ]);
+                      setNewAttrName('');
+                      setNewAttrVal('');
+                    }}
+                    className="px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-[#EAF2FC] hover:bg-blue-100 border border-blue-200 rounded-md shrink-0"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Câmpuri adiționale (Metadata JSON)
+                </label>
+                <textarea
+                  rows={3}
+                  value={form.metadataJson}
+                  onChange={(e) => updateField('metadataJson', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -525,27 +842,27 @@ export function ProductEditor({
 
       {activeTab === 'media' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-8 bg-white border border-teal-900/10 rounded-xl p-6 space-y-5">
+          <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-[#0F2928]">
+                <h3 className="text-sm font-semibold text-slate-900">
                   Galerie foto produs
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Reordonează imaginile, setează textul alternativ (ALT) și alege imaginea principală.
                 </p>
               </div>
-              <span className="text-xs font-mono text-teal-800 tabular-nums">
+              <span className="text-xs font-mono text-blue-700 tabular-nums">
                 {form.galleryImages.length} imagini
               </span>
             </div>
 
             {form.galleryImages.length === 0 ? (
-              <div className="p-8 border border-dashed border-teal-900/20 rounded-xl text-center text-sm text-slate-500">
+              <div className="p-8 border border-dashed border-slate-300 rounded-xl text-center text-sm text-slate-500">
                 Nu există imagini în galerie. Adaugă un URL din dreapta sau alege din activele de studio.
               </div>
             ) : (
-              <div className="divide-y divide-teal-900/10 border border-teal-900/10 rounded-xl overflow-hidden">
+              <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
                 {form.galleryImages.map((img, idx) => (
                   <div
                     key={`${img.url}-${idx}`}
@@ -554,7 +871,7 @@ export function ProductEditor({
                     <ProductImage
                       src={img.url}
                       alt={img.altText || form.title}
-                      className="w-16 h-16 rounded-lg border border-teal-900/10 shrink-0"
+                      className="w-16 h-16 rounded-lg border border-slate-200 shrink-0"
                     />
                     <div className="flex-1 min-w-0 space-y-2">
                       <input
@@ -565,7 +882,7 @@ export function ProductEditor({
                           next[idx] = { ...next[idx], url: e.target.value };
                           updateField('galleryImages', next);
                         }}
-                        className="w-full px-2.5 py-1.5 text-xs font-mono border border-teal-900/15 rounded-md"
+                        className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-200 rounded-md"
                       />
                       <input
                         type="text"
@@ -576,7 +893,7 @@ export function ProductEditor({
                           updateField('galleryImages', next);
                         }}
                         placeholder="Text alternativ (ALT)"
-                        className="w-full px-2.5 py-1.5 text-xs border border-teal-900/15 rounded-md"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-md"
                       />
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -585,8 +902,8 @@ export function ProductEditor({
                         onClick={() => handleSetPrimaryImage(idx)}
                         className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors whitespace-nowrap ${
                           img.isPrimary || form.thumbnailUrl === img.url
-                            ? 'bg-teal-600 text-white border-teal-600'
-                            : 'bg-white text-slate-700 border-teal-900/15 hover:bg-teal-50'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50'
                         }`}
                       >
                         <Star className="w-3 h-3" />
@@ -600,7 +917,7 @@ export function ProductEditor({
                         type="button"
                         disabled={idx === 0}
                         onClick={() => handleMoveGalleryImage(idx, -1)}
-                        className="p-1.5 text-slate-500 hover:text-teal-800 disabled:opacity-30 border border-teal-900/15 rounded-md"
+                        className="p-1.5 text-slate-500 hover:text-blue-700 disabled:opacity-30 border border-slate-200 rounded-md"
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
@@ -608,14 +925,14 @@ export function ProductEditor({
                         type="button"
                         disabled={idx === form.galleryImages.length - 1}
                         onClick={() => handleMoveGalleryImage(idx, 1)}
-                        className="p-1.5 text-slate-500 hover:text-teal-800 disabled:opacity-30 border border-teal-900/15 rounded-md"
+                        className="p-1.5 text-slate-500 hover:text-blue-700 disabled:opacity-30 border border-slate-200 rounded-md"
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleRemoveGalleryImage(idx)}
-                        className="p-1.5 text-slate-500 hover:text-red-600 border border-teal-900/15 rounded-md"
+                        className="p-1.5 text-slate-500 hover:text-red-600 border border-slate-200 rounded-md"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -627,8 +944,25 @@ export function ProductEditor({
           </div>
 
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white border border-teal-900/10 rounded-xl p-6 space-y-4">
-              <h3 className="text-sm font-semibold text-[#0F2928]">
+            <div className="bg-white border border-blue-200 rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Biblioteca Media &amp; WebP
+              </h3>
+              <p className="text-xs text-slate-600">
+                Încarcă imagini noi, convertește-le la WebP și inserează linkul intern direct în galerie.
+              </p>
+              <button
+                type="button"
+                onClick={() => setMediaModalOpen(true)}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>Alege din Biblioteca Media (WebP)</span>
+              </button>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900">
                 Adaugă imagine după URL
               </h3>
               <div>
@@ -640,7 +974,7 @@ export function ProductEditor({
                   value={newImageUrl}
                   onChange={(e) => setNewImageUrl(e.target.value)}
                   placeholder="https://cdn.magazin.ro/produs.jpg"
-                  className="w-full px-3 py-2 text-xs font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                  className="w-full px-3 py-2 text-xs font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg"
                 />
               </div>
               <div>
@@ -652,20 +986,20 @@ export function ProductEditor({
                   value={newImageAlt}
                   onChange={(e) => setNewImageAlt(e.target.value)}
                   placeholder="Descriere imagine"
-                  className="w-full px-3 py-2 text-xs bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                  className="w-full px-3 py-2 text-xs bg-[#F4F8FD] border border-slate-200 rounded-lg"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => handleAddGalleryImage()}
-                className="w-full px-4 py-2 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                className="w-full px-4 py-2 text-xs font-medium text-blue-700 bg-[#EAF2FC] hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
               >
                 Adaugă în galerie
               </button>
             </div>
 
-            <div className="bg-white border border-teal-900/10 rounded-xl p-6 space-y-3">
-              <h3 className="text-sm font-semibold text-[#0F2928]">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900">
                 Imagini Studio Rapide
               </h3>
               <div className="grid grid-cols-2 gap-3">
@@ -676,14 +1010,14 @@ export function ProductEditor({
                     onClick={() =>
                       handleAddGalleryImage(preset.url, preset.label)
                     }
-                    className="group text-left border border-teal-900/10 rounded-lg overflow-hidden hover:border-teal-600 transition-colors"
+                    className="group text-left border border-slate-200 rounded-lg overflow-hidden hover:border-blue-500 transition-colors"
                   >
                     <ProductImage
                       src={preset.url}
                       alt={preset.label}
                       className="w-full h-24"
                     />
-                    <div className="p-2 text-xs font-medium text-slate-700 truncate group-hover:text-teal-800">
+                    <div className="p-2 text-xs font-medium text-slate-700 truncate group-hover:text-blue-700">
                       + {preset.label}
                     </div>
                   </button>
@@ -696,9 +1030,9 @@ export function ProductEditor({
 
       {activeTab === 'inventory' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-7 bg-white border border-teal-900/10 rounded-xl p-6 space-y-6">
+          <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-[#0F2928]">
+              <h3 className="text-sm font-semibold text-slate-900">
                 Stoc &amp; Identificare
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
@@ -710,7 +1044,7 @@ export function ProductEditor({
                     type="text"
                     value={form.sku}
                     onChange={(e) => updateField('sku', e.target.value)}
-                    className="w-full px-3 py-2 text-sm font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
                 <div>
@@ -721,7 +1055,7 @@ export function ProductEditor({
                     type="text"
                     value={form.barcode}
                     onChange={(e) => updateField('barcode', e.target.value)}
-                    className="w-full px-3 py-2 text-sm font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
                 <div>
@@ -733,9 +1067,12 @@ export function ProductEditor({
                     min={0}
                     value={form.weightGrams}
                     onChange={(e) =>
-                      updateField('weightGrams', Math.max(0, Number(e.target.value) || 0))
+                      updateField(
+                        'weightGrams',
+                        Math.max(0, Number(e.target.value) || 0)
+                      )
                     }
-                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
               </div>
@@ -750,9 +1087,12 @@ export function ProductEditor({
                     min={0}
                     value={form.stockQuantity}
                     onChange={(e) =>
-                      updateField('stockQuantity', Math.max(0, Number(e.target.value) || 0))
+                      updateField(
+                        'stockQuantity',
+                        Math.max(0, Number(e.target.value) || 0)
+                      )
                     }
-                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
                 <div>
@@ -764,9 +1104,12 @@ export function ProductEditor({
                     min={0}
                     value={form.reservedQuantity}
                     onChange={(e) =>
-                      updateField('reservedQuantity', Math.max(0, Number(e.target.value) || 0))
+                      updateField(
+                        'reservedQuantity',
+                        Math.max(0, Number(e.target.value) || 0)
+                      )
                     }
-                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
                 <div>
@@ -778,20 +1121,25 @@ export function ProductEditor({
                     min={0}
                     value={form.lowStockThreshold}
                     onChange={(e) =>
-                      updateField('lowStockThreshold', Math.max(0, Number(e.target.value) || 0))
+                      updateField(
+                        'lowStockThreshold',
+                        Math.max(0, Number(e.target.value) || 0)
+                      )
                     }
-                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-6 mt-4 pt-4 border-t border-teal-900/10">
+              <div className="flex flex-wrap gap-6 mt-4 pt-4 border-t border-slate-100">
                 <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={form.manageInventory}
-                    onChange={(e) => updateField('manageInventory', e.target.checked)}
-                    className="rounded border-teal-900/25 text-teal-600 focus:ring-teal-600"
+                    onChange={(e) =>
+                      updateField('manageInventory', e.target.checked)
+                    }
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span>Urmărește stocul (manage inventory)</span>
                 </label>
@@ -800,16 +1148,18 @@ export function ProductEditor({
                   <input
                     type="checkbox"
                     checked={form.allowBackorder}
-                    onChange={(e) => updateField('allowBackorder', e.target.checked)}
-                    className="rounded border-teal-900/25 text-teal-600 focus:ring-teal-600"
+                    onChange={(e) =>
+                      updateField('allowBackorder', e.target.checked)
+                    }
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span>Permite precomenzi fără stoc (backorder)</span>
                 </label>
               </div>
             </div>
 
-            <div className="pt-6 border-t border-teal-900/10">
-              <h3 className="text-sm font-semibold text-[#0F2928]">
+            <div className="pt-6 border-t border-slate-100">
+              <h3 className="text-sm font-semibold text-slate-900">
                 Reguli Cantitate Comandă (Min / Max / Step)
               </h3>
               <p className="text-xs text-slate-500 mt-1">
@@ -830,7 +1180,7 @@ export function ProductEditor({
                       updateField('minOrderQty', val);
                       setSimQty(val);
                     }}
-                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
                 <div>
@@ -850,7 +1200,7 @@ export function ProductEditor({
                       )
                     }
                     placeholder="Nelimitat"
-                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
                 <div>
@@ -862,35 +1212,41 @@ export function ProductEditor({
                     min={1}
                     value={form.stepQty}
                     onChange={(e) =>
-                      updateField('stepQty', Math.max(1, Number(e.target.value) || 1))
+                      updateField(
+                        'stepQty',
+                        Math.max(1, Number(e.target.value) || 1)
+                      )
                     }
-                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="lg:col-span-5 bg-white border border-teal-900/10 rounded-xl p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-[#0F2928]">
+          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-900">
               Simulator Selector Cantitate Storefront
             </h3>
             <p className="text-xs text-slate-500">
-              Testează comportamentul cu Min ({form.minOrderQty}), Max ({form.maxOrderQty ?? '∞'}) și Pas (+{form.stepQty}).
+              Testează comportamentul cu Min ({form.minOrderQty}), Max (
+              {form.maxOrderQty ?? '∞'}) și Pas (+{form.stepQty}).
             </p>
 
-            <div className="p-4 bg-[#F7FBFA] border border-teal-900/10 rounded-xl space-y-4">
+            <div className="p-4 bg-[#F4F8FD] border border-slate-200 rounded-xl space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-600">
                   Cantitate testată
                 </span>
-                <div className="inline-flex items-center border border-teal-900/20 bg-white rounded-lg overflow-hidden">
+                <div className="inline-flex items-center border border-slate-200 bg-white rounded-lg overflow-hidden">
                   <button
                     type="button"
                     onClick={() =>
-                      setSimQty((q) => Math.max(form.minOrderQty, q - form.stepQty))
+                      setSimQty((q) =>
+                        Math.max(form.minOrderQty, q - form.stepQty)
+                      )
                     }
-                    className="p-2 text-teal-800 hover:bg-teal-50"
+                    className="p-2 text-blue-700 hover:bg-blue-50"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
@@ -912,22 +1268,26 @@ export function ProductEditor({
                           : next;
                       })
                     }
-                    className="p-2 text-teal-800 hover:bg-teal-50"
+                    className="p-2 text-blue-700 hover:bg-blue-50"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1.5 text-xs border-t border-teal-900/10 pt-3">
+              <div className="space-y-1.5 text-xs border-t border-slate-200 pt-3">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Validare reguli</span>
                   <span
                     className={`font-medium ${
-                      localPricePreview.valid ? 'text-teal-700' : 'text-red-600'
+                      localPricePreview.valid ? 'text-blue-700' : 'text-red-600'
                     }`}
                   >
-                    {localPricePreview.valid ? 'Cantitate validă' : 'Încălcare regulă'}
+                    {form.priceOnRequest
+                      ? 'Doar solicitare ofertă'
+                      : localPricePreview.valid
+                      ? 'Cantitate validă'
+                      : 'Încălcare regulă'}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -938,14 +1298,24 @@ export function ProductEditor({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Preț unitar aplicat</span>
-                  <span className="font-mono tabular-nums text-[#0F2928] font-medium">
-                    {formatMoney(localPricePreview.unitPriceCents, form.currency)}
+                  <span className="font-mono tabular-nums text-slate-900 font-medium">
+                    {form.priceOnRequest
+                      ? 'Preț la cerere'
+                      : formatMoney(
+                          localPricePreview.unitPriceCents,
+                          form.currency
+                        )}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Total linie</span>
-                  <span className="font-mono tabular-nums text-teal-800 font-semibold">
-                    {formatMoney(localPricePreview.totalPriceCents, form.currency)}
+                  <span className="font-mono tabular-nums text-blue-700 font-semibold">
+                    {form.priceOnRequest
+                      ? 'Necesită ofertă'
+                      : formatMoney(
+                          localPricePreview.totalPriceCents,
+                          form.currency
+                        )}
                   </span>
                 </div>
               </div>
@@ -964,320 +1334,391 @@ export function ProductEditor({
 
       {activeTab === 'pricing' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-8 bg-white border border-teal-900/10 rounded-xl p-6 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  Monedă
-                </label>
-                <select
-                  value={form.currency}
-                  onChange={(e) =>
-                    updateField('currency', e.target.value as ProductRecord['currency'])
-                  }
-                  className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
-                >
-                  <option value="RON">RON</option>
-                  <option value="EUR">EUR</option>
-                  <option value="USD">USD</option>
-                  <option value="GBP">GBP</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  Preț bază ({form.currency})
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={(form.basePriceCents / 100).toFixed(2)}
-                  onChange={(e) =>
-                    updateField(
-                      'basePriceCents',
-                      Math.max(0, Math.round(Number(e.target.value || 0) * 100))
-                    )
-                  }
-                  className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  Preț vechi (tăiat)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={
-                    form.compareAtPriceCents !== null
-                      ? (form.compareAtPriceCents / 100).toFixed(2)
-                      : ''
-                  }
-                  onChange={(e) =>
-                    updateField(
-                      'compareAtPriceCents',
-                      e.target.value === ''
-                        ? null
-                        : Math.max(0, Math.round(Number(e.target.value) * 100))
-                    )
-                  }
-                  placeholder="Opțional"
-                  className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  Cotă TVA (%)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={form.taxRatePercent}
-                  onChange={(e) =>
-                    updateField(
-                      'taxRatePercent',
-                      Math.min(100, Math.max(0, Number(e.target.value) || 0))
-                    )
-                  }
-                  className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
-                />
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-teal-900/10 space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-[#0F2928]">
-                    Praguri de preț în funcție de cantitate (Tiered Pricing)
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Prețul unitar scade automat pe măsură ce cantitatea din coș atinge pragul definit.
-                  </p>
+          <div className="lg:col-span-8 space-y-6">
+            {/* Banner dedicat Preț la cerere */}
+            <div className="bg-white border border-blue-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <FileQuestion className="w-4 h-4 text-blue-600" />
+                  <span>Produs cu „Preț la cerere” (fără comandă directă)</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddTier}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Adaugă prag</span>
-                </button>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Când această opțiune este activă, produsul rămâne vizibil în magazin, însă prețul este înlocuit cu „Preț la cerere”, iar butonul „Adaugă în coș” devine „Cere ofertă”.
+                </p>
               </div>
-
-              {form.priceTiers.length === 0 ? (
-                <div className="p-6 border border-dashed border-teal-900/20 rounded-xl text-center text-xs text-slate-500">
-                  Nu există praguri definite. Se folosește prețul de bază pentru orice cantitate.
-                </div>
-              ) : (
-                <div className="overflow-x-auto border border-teal-900/10 rounded-xl">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#F7FBFA] border-b border-teal-900/10 text-slate-500">
-                        <th className="py-2.5 px-3">Cant. Min</th>
-                        <th className="py-2.5 px-3">Cant. Max</th>
-                        <th className="py-2.5 px-3">Preț unitar ({form.currency})</th>
-                        <th className="py-2.5 px-3">Discount</th>
-                        <th className="py-2.5 px-3">Etichetă prag</th>
-                        <th className="py-2.5 px-3 text-right">Șterge</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-teal-900/5">
-                      {form.priceTiers.map((tier, idx) => {
-                        const pctOff =
-                          form.basePriceCents > 0
-                            ? Math.round(
-                                ((form.basePriceCents - tier.unitPriceCents) /
-                                  form.basePriceCents) *
-                                  100
-                              )
-                            : 0;
-                        return (
-                          <tr key={idx}>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                min={1}
-                                value={tier.minQty}
-                                onChange={(e) => {
-                                  const next = [...form.priceTiers];
-                                  next[idx] = {
-                                    ...next[idx],
-                                    minQty: Math.max(1, Number(e.target.value) || 1),
-                                  };
-                                  updateField('priceTiers', next);
-                                }}
-                                className="w-20 px-2 py-1 font-mono tabular-nums border border-teal-900/15 rounded-md"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                min={tier.minQty}
-                                value={tier.maxQty ?? ''}
-                                placeholder="∞"
-                                onChange={(e) => {
-                                  const next = [...form.priceTiers];
-                                  next[idx] = {
-                                    ...next[idx],
-                                    maxQty:
-                                      e.target.value === ''
-                                        ? null
-                                        : Math.max(
-                                            tier.minQty,
-                                            Number(e.target.value) || tier.minQty
-                                          ),
-                                  };
-                                  updateField('priceTiers', next);
-                                }}
-                                className="w-20 px-2 py-1 font-mono tabular-nums border border-teal-900/15 rounded-md"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                value={(tier.unitPriceCents / 100).toFixed(2)}
-                                onChange={(e) => {
-                                  const next = [...form.priceTiers];
-                                  next[idx] = {
-                                    ...next[idx],
-                                    unitPriceCents: Math.max(
-                                      0,
-                                      Math.round(Number(e.target.value || 0) * 100)
-                                    ),
-                                  };
-                                  updateField('priceTiers', next);
-                                }}
-                                className="w-28 px-2 py-1 font-mono tabular-nums border border-teal-900/15 rounded-md"
-                              />
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums">
-                              <span
-                                className={
-                                  pctOff > 0
-                                    ? 'text-teal-700 font-medium'
-                                    : 'text-slate-500'
-                                }
-                              >
-                                {pctOff > 0 ? `-${pctOff}%` : '0%'}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="text"
-                                value={tier.discountLabel}
-                                onChange={(e) => {
-                                  const next = [...form.priceTiers];
-                                  next[idx] = {
-                                    ...next[idx],
-                                    discountLabel: e.target.value,
-                                  };
-                                  updateField('priceTiers', next);
-                                }}
-                                placeholder="En-gros / B2B"
-                                className="w-36 px-2 py-1 border border-teal-900/15 rounded-md"
-                              />
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateField(
-                                    'priceTiers',
-                                    form.priceTiers.filter((_, i) => i !== idx)
-                                  )
-                                }
-                                className="p-1 text-slate-400 hover:text-red-600"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="lg:col-span-4 bg-white border border-teal-900/10 rounded-xl p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-[#0F2928]">
-              Calculator Praguri Preț
-            </h3>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                Cantitate evaluată
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#EAF2FC] text-blue-900 text-xs font-semibold cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={form.priceOnRequest}
+                  onChange={(e) =>
+                    updateField('priceOnRequest', e.target.checked)
+                  }
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>{form.priceOnRequest ? 'Activ' : 'Dezactivat'}</span>
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  value={simQty}
-                  onChange={(e) =>
-                    setSimQty(Math.max(1, Number(e.target.value) || 1))
-                  }
-                  className="flex-1 px-3 py-2 text-sm font-mono tabular-nums bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
-                />
-                {form.id && (
+            </div>
+
+            {form.priceOnRequest && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-900 leading-relaxed">
+                <strong>Mod Preț la cerere activ:</strong> Produsul va fi expus în API cu{' '}
+                <code className="font-mono">price_on_request: true</code> și{' '}
+                <code className="font-mono">orderable: false</code>. Valorile de mai jos rămân salvate doar ca referință internă.
+              </div>
+            )}
+
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    Monedă
+                  </label>
+                  <select
+                    value={form.currency}
+                    onChange={(e) =>
+                      updateField(
+                        'currency',
+                        e.target.value as ProductRecord['currency']
+                      )
+                    }
+                    className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg"
+                  >
+                    <option value="RON">RON</option>
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
+                    <option value="GBP">GBP</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    Preț bază ({form.currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={(form.basePriceCents / 100).toFixed(2)}
+                    onChange={(e) =>
+                      updateField(
+                        'basePriceCents',
+                        Math.max(0, Math.round(Number(e.target.value || 0) * 100))
+                      )
+                    }
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    Preț vechi (tăiat)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={
+                      form.compareAtPriceCents !== null
+                        ? (form.compareAtPriceCents / 100).toFixed(2)
+                        : ''
+                    }
+                    onChange={(e) =>
+                      updateField(
+                        'compareAtPriceCents',
+                        e.target.value === ''
+                          ? null
+                          : Math.max(0, Math.round(Number(e.target.value) * 100))
+                      )
+                    }
+                    placeholder="Opțional"
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    Cotă TVA (%)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.taxRatePercent}
+                    onChange={(e) =>
+                      updateField(
+                        'taxRatePercent',
+                        Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                      )
+                    }
+                    className="w-full px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-100 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      Praguri de preț în funcție de cantitate (Tiered Pricing)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Prețul unitar scade automat pe măsură ce cantitatea din coș atinge pragul definit.
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    disabled={calcLoading}
-                    onClick={handleServerCalculate}
-                    className="px-3 py-2 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg whitespace-nowrap shrink-0"
+                    onClick={handleAddTier}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
                   >
-                    {calcLoading ? 'Verific...' : 'Verifică API'}
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Adaugă prag</span>
                   </button>
+                </div>
+
+                {form.priceTiers.length === 0 ? (
+                  <div className="p-6 border border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-500">
+                    Nu există praguri definite. Se folosește prețul de bază pentru orice cantitate.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-[#F4F8FD] border-b border-slate-200 text-slate-500">
+                          <th className="py-2.5 px-3">Cant. Min</th>
+                          <th className="py-2.5 px-3">Cant. Max</th>
+                          <th className="py-2.5 px-3">
+                            Preț unitar ({form.currency})
+                          </th>
+                          <th className="py-2.5 px-3">Discount</th>
+                          <th className="py-2.5 px-3">Etichetă prag</th>
+                          <th className="py-2.5 px-3 text-right">Șterge</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {form.priceTiers.map((tier, idx) => {
+                          const pctOff =
+                            form.basePriceCents > 0
+                              ? Math.round(
+                                  ((form.basePriceCents - tier.unitPriceCents) /
+                                    form.basePriceCents) *
+                                    100
+                                )
+                              : 0;
+                          return (
+                            <tr key={idx}>
+                              <td className="py-2 px-3">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={tier.minQty}
+                                  onChange={(e) => {
+                                    const next = [...form.priceTiers];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      minQty: Math.max(
+                                        1,
+                                        Number(e.target.value) || 1
+                                      ),
+                                    };
+                                    updateField('priceTiers', next);
+                                  }}
+                                  className="w-20 px-2 py-1 font-mono tabular-nums border border-slate-200 rounded-md"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                <input
+                                  type="number"
+                                  min={tier.minQty}
+                                  value={tier.maxQty ?? ''}
+                                  placeholder="∞"
+                                  onChange={(e) => {
+                                    const next = [...form.priceTiers];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      maxQty:
+                                        e.target.value === ''
+                                          ? null
+                                          : Math.max(
+                                              tier.minQty,
+                                              Number(e.target.value) ||
+                                                tier.minQty
+                                            ),
+                                    };
+                                    updateField('priceTiers', next);
+                                  }}
+                                  className="w-20 px-2 py-1 font-mono tabular-nums border border-slate-200 rounded-md"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  value={(tier.unitPriceCents / 100).toFixed(2)}
+                                  onChange={(e) => {
+                                    const next = [...form.priceTiers];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      unitPriceCents: Math.max(
+                                        0,
+                                        Math.round(
+                                          Number(e.target.value || 0) * 100
+                                        )
+                                      ),
+                                    };
+                                    updateField('priceTiers', next);
+                                  }}
+                                  className="w-28 px-2 py-1 font-mono tabular-nums border border-slate-200 rounded-md"
+                                />
+                              </td>
+                              <td className="py-2 px-3 font-mono tabular-nums">
+                                <span
+                                  className={
+                                    pctOff > 0
+                                      ? 'text-blue-700 font-medium'
+                                      : 'text-slate-500'
+                                  }
+                                >
+                                  {pctOff > 0 ? `-${pctOff}%` : '0%'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3">
+                                <input
+                                  type="text"
+                                  value={tier.discountLabel}
+                                  onChange={(e) => {
+                                    const next = [...form.priceTiers];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      discountLabel: e.target.value,
+                                    };
+                                    updateField('priceTiers', next);
+                                  }}
+                                  placeholder="En-gros / B2B"
+                                  className="w-36 px-2 py-1 border border-slate-200 rounded-md"
+                                />
+                              </td>
+                              <td className="py-2 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateField(
+                                      'priceTiers',
+                                      form.priceTiers.filter(
+                                        (_, i) => i !== idx
+                                      )
+                                    )
+                                  }
+                                  className="p-1 text-slate-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="p-4 bg-[#F7FBFA] border border-teal-900/10 rounded-xl space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Prag aplicat</span>
-                <span className="font-medium text-[#0F2928]">
-                  {localPricePreview.appliedTier?.discountLabel || 'Preț de bază'}
-                </span>
+          <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Calculator Praguri Preț
+            </h3>
+            {form.priceOnRequest ? (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed">
+                Produsul are opțiunea <strong>Preț la cerere</strong> activată. Cumpărătorii nu pot calcula un coș direct, ci trimit o cerere de ofertă personalizată.
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Preț unitar</span>
-                <span className="font-mono tabular-nums font-medium text-[#0F2928]">
-                  {formatMoney(localPricePreview.unitPriceCents, form.currency)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total ({simQty} buc.)</span>
-                <span className="font-mono tabular-nums font-semibold text-[#0F2928]">
-                  {formatMoney(localPricePreview.totalPriceCents, form.currency)}
-                </span>
-              </div>
-              <div className="flex justify-between pt-2 border-t border-teal-900/10">
-                <span className="text-slate-500">Economie volum</span>
-                <span className="font-mono tabular-nums font-medium text-teal-700">
-                  {formatMoney(localPricePreview.savingsCents, form.currency)}
-                </span>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    Cantitate evaluată
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={simQty}
+                      onChange={(e) =>
+                        setSimQty(Math.max(1, Number(e.target.value) || 1))
+                      }
+                      className="flex-1 px-3 py-2 text-sm font-mono tabular-nums bg-[#F4F8FD] border border-slate-200 rounded-lg"
+                    />
+                    {form.id && (
+                      <button
+                        type="button"
+                        disabled={calcLoading}
+                        onClick={handleServerCalculate}
+                        className="px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg whitespace-nowrap shrink-0"
+                      >
+                        {calcLoading ? 'Verific...' : 'Verifică API'}
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-            {serverCalc && (
-              <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg text-xs text-teal-900 font-mono">
-                Răspuns API: {formatMoney(serverCalc.unitPriceCents, form.currency)} / buc ·{' '}
-                {serverCalc.valid ? 'valid' : serverCalc.validationErrors[0]}
-              </div>
+                <div className="p-4 bg-[#F4F8FD] border border-slate-200 rounded-xl space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Prag aplicat</span>
+                    <span className="font-medium text-slate-900">
+                      {localPricePreview.appliedTier?.discountLabel ||
+                        'Preț de bază'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Preț unitar</span>
+                    <span className="font-mono tabular-nums font-medium text-slate-900">
+                      {formatMoney(
+                        localPricePreview.unitPriceCents,
+                        form.currency
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">
+                      Total ({simQty} buc.)
+                    </span>
+                    <span className="font-mono tabular-nums font-semibold text-slate-900">
+                      {formatMoney(
+                        localPricePreview.totalPriceCents,
+                        form.currency
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-slate-200">
+                    <span className="text-slate-500">Economie volum</span>
+                    <span className="font-mono tabular-nums font-medium text-blue-700">
+                      {formatMoney(
+                        localPricePreview.savingsCents,
+                        form.currency
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {serverCalc && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 font-mono">
+                    Răspuns API:{' '}
+                    {formatMoney(serverCalc.unitPriceCents, form.currency)} /
+                    buc ·{' '}
+                    {serverCalc.valid
+                      ? 'valid'
+                      : serverCalc.validationErrors[0]}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       )}
 
       {activeTab === 'variants' && (
-        <div className="bg-white border border-teal-900/10 rounded-xl p-6 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-[#0F2928]">
+              <h3 className="text-sm font-semibold text-slate-900">
                 Variante Produs
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -1287,7 +1728,7 @@ export function ProductEditor({
             <button
               type="button"
               onClick={handleAddVariant}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg whitespace-nowrap shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Adaugă variantă</span>
@@ -1295,14 +1736,15 @@ export function ProductEditor({
           </div>
 
           {form.variants.length === 0 ? (
-            <div className="p-8 border border-dashed border-teal-900/20 rounded-xl text-center text-xs text-slate-500">
-              Nu există variante adăugate. Se utilizează SKU-ul principal ({form.sku || 'nesetat'}).
+            <div className="p-8 border border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-500">
+              Nu există variante adăugate. Se utilizează SKU-ul principal (
+              {form.sku || 'nesetat'}).
             </div>
           ) : (
-            <div className="overflow-x-auto border border-teal-900/10 rounded-xl">
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-[#F7FBFA] border-b border-teal-900/10 text-slate-500">
+                  <tr className="bg-[#F4F8FD] border-b border-slate-200 text-slate-500">
                     <th className="py-2.5 px-3">Titlu Variantă</th>
                     <th className="py-2.5 px-3">SKU</th>
                     <th className="py-2.5 px-3">Preț ({form.currency})</th>
@@ -1311,7 +1753,7 @@ export function ProductEditor({
                     <th className="py-2.5 px-3 text-right">Șterge</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-teal-900/5">
+                <tbody className="divide-y divide-slate-100">
                   {form.variants.map((variant, idx) => (
                     <tr key={idx}>
                       <td className="py-2 px-3">
@@ -1323,7 +1765,7 @@ export function ProductEditor({
                             next[idx] = { ...next[idx], title: e.target.value };
                             updateField('variants', next);
                           }}
-                          className="w-48 px-2 py-1 border border-teal-900/15 rounded-md"
+                          className="w-48 px-2 py-1 border border-slate-200 rounded-md"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -1335,7 +1777,7 @@ export function ProductEditor({
                             next[idx] = { ...next[idx], sku: e.target.value };
                             updateField('variants', next);
                           }}
-                          className="w-36 px-2 py-1 font-mono border border-teal-900/15 rounded-md"
+                          className="w-36 px-2 py-1 font-mono border border-slate-200 rounded-md"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -1355,7 +1797,7 @@ export function ProductEditor({
                             };
                             updateField('variants', next);
                           }}
-                          className="w-28 px-2 py-1 font-mono tabular-nums border border-teal-900/15 rounded-md"
+                          className="w-28 px-2 py-1 font-mono tabular-nums border border-slate-200 rounded-md"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -1367,11 +1809,14 @@ export function ProductEditor({
                             const next = [...form.variants];
                             next[idx] = {
                               ...next[idx],
-                              stockQuantity: Math.max(0, Number(e.target.value) || 0),
+                              stockQuantity: Math.max(
+                                0,
+                                Number(e.target.value) || 0
+                              ),
                             };
                             updateField('variants', next);
                           }}
-                          className="w-20 px-2 py-1 font-mono tabular-nums border border-teal-900/15 rounded-md"
+                          className="w-20 px-2 py-1 font-mono tabular-nums border border-slate-200 rounded-md"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -1386,7 +1831,7 @@ export function ProductEditor({
                             };
                             updateField('variants', next);
                           }}
-                          className="w-44 px-2 py-1 font-mono border border-teal-900/15 rounded-md"
+                          className="w-44 px-2 py-1 font-mono border border-slate-200 rounded-md"
                         />
                       </td>
                       <td className="py-2 px-3 text-right">
@@ -1414,7 +1859,7 @@ export function ProductEditor({
 
       {activeTab === 'seo' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-7 bg-white border border-teal-900/10 rounded-xl p-6 space-y-4">
+          <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-medium text-slate-700">
@@ -1422,7 +1867,9 @@ export function ProductEditor({
                 </label>
                 <span
                   className={`text-xs font-mono tabular-nums ${
-                    form.seoTitle.length > 60 ? 'text-amber-600' : 'text-slate-400'
+                    form.seoTitle.length > 60
+                      ? 'text-amber-600'
+                      : 'text-slate-400'
                   }`}
                 >
                   {form.seoTitle.length} / 60
@@ -1433,7 +1880,7 @@ export function ProductEditor({
                 value={form.seoTitle}
                 onChange={(e) => updateField('seoTitle', e.target.value)}
                 placeholder="Implicit titlul produsului dacă rămâne gol"
-                className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
               />
             </div>
 
@@ -1457,7 +1904,7 @@ export function ProductEditor({
                 value={form.seoDescription}
                 onChange={(e) => updateField('seoDescription', e.target.value)}
                 placeholder="Descrierea afișată în rezultatele Google..."
-                className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
               />
             </div>
 
@@ -1469,7 +1916,7 @@ export function ProductEditor({
                 type="text"
                 value={form.seoKeywords}
                 onChange={(e) => updateField('seoKeywords', e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
               />
             </div>
 
@@ -1482,7 +1929,7 @@ export function ProductEditor({
                   type="text"
                   value={form.canonicalUrl}
                   onChange={(e) => updateField('canonicalUrl', e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                  className="w-full px-3 py-2 text-xs font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
               <div>
@@ -1493,7 +1940,7 @@ export function ProductEditor({
                   type="text"
                   value={form.ogImageUrl}
                   onChange={(e) => updateField('ogImageUrl', e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg"
+                  className="w-full px-3 py-2 text-xs font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1503,21 +1950,21 @@ export function ProductEditor({
                 type="checkbox"
                 checked={form.noIndex}
                 onChange={(e) => updateField('noIndex', e.target.checked)}
-                className="rounded border-teal-900/25 text-teal-600 focus:ring-teal-600"
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
               <span>Setează meta robots pe noindex, nofollow</span>
             </label>
           </div>
 
-          <div className="lg:col-span-5 bg-white border border-teal-900/10 rounded-xl p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-[#0F2928]">
+          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-900">
               Previzualizare Google SERP
             </h3>
-            <div className="p-4 border border-teal-900/10 rounded-lg bg-[#F7FBFA] space-y-1">
+            <div className="p-4 border border-blue-100 rounded-lg bg-[#F4F8FD] space-y-1">
               <div className="text-xs text-slate-500 truncate font-mono">
                 {serpUrl}
               </div>
-              <div className="text-base font-medium text-teal-800 leading-snug">
+              <div className="text-base font-medium text-blue-700 leading-snug">
                 {serpTitle}
               </div>
               <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
@@ -1532,10 +1979,48 @@ export function ProductEditor({
                 <ProductImage
                   src={form.ogImageUrl || form.thumbnailUrl}
                   alt={serpTitle}
-                  className="w-full h-44 rounded-lg border border-teal-900/10"
+                  className="w-full h-44 rounded-lg border border-slate-200"
                 />
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {mediaModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4"
+          onClick={() => setMediaModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-5xl bg-[#F4F8FD] border border-slate-200 rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Alege sau convertește imagini la WebP pentru „{form.title || 'Produs nou'}”
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Poți încărca imagini noi, genera varianta WebP și selecta linkul dorit în galerie.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMediaModalOpen(false)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <MediaLibraryWorkspace
+                pickerMode
+                onSelectUrl={(url, alt) => {
+                  handleAddGalleryImage(url, alt);
+                  setMediaModalOpen(false);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

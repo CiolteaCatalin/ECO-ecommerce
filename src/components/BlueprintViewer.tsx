@@ -55,7 +55,7 @@ export function BlueprintViewer() {
 
   if (loading) {
     return (
-      <div className="bg-white border border-teal-900/10 rounded-xl p-8 text-sm text-slate-500">
+      <div className="bg-white border border-slate-200 rounded-xl p-8 text-sm text-slate-500">
         Se încarcă fișierele modulului Medusa v2...
       </div>
     );
@@ -71,27 +71,27 @@ export function BlueprintViewer() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-teal-900/10 rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#0F2928]">
+          <h2 className="text-lg font-semibold text-slate-900">
             Structură Modul Custom Medusa v2 (pentru GitHub)
           </h2>
           <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-            Aceste fișiere sunt generate în folderul <span className="font-mono text-teal-800">/medusa-v2</span> al proiectului și includ modelele DML, link-urile de modul, workflow-ul cu rollback, rutele Admin/Store API și configurația Docker Compose.
+            Fișierele sunt generate în folderul <span className="font-mono text-blue-700">/medusa-v2</span> și includ modelele DML, link-urile de modul, workflow-ul cu rollback, rutele Admin/Store API și configurația Docker Compose.
           </p>
         </div>
-        <div className="text-xs font-mono text-teal-800 tabular-nums shrink-0">
+        <div className="text-xs font-mono text-blue-700 tabular-nums shrink-0">
           {files.length} fișiere generate
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-4 bg-white border border-teal-900/10 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-teal-900/10 flex items-center gap-2 text-xs font-medium text-slate-600">
-            <FolderTree className="w-4 h-4 text-teal-600" />
+        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2 text-xs font-medium text-slate-600">
+            <FolderTree className="w-4 h-4 text-blue-600" />
             <span>Arbore Fișiere</span>
           </div>
-          <div className="divide-y divide-teal-900/5 max-h-[540px] overflow-y-auto">
+          <div className="divide-y divide-slate-100 max-h-[540px] overflow-y-auto">
             {files.map((file) => {
               const isActive = file.path === activeFile?.path;
               return (
@@ -101,13 +101,13 @@ export function BlueprintViewer() {
                   onClick={() => setSelectedPath(file.path)}
                   className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 text-xs font-mono transition-colors ${
                     isActive
-                      ? 'bg-teal-600 text-white'
-                      : 'text-slate-700 hover:bg-teal-50/70'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-700 hover:bg-blue-50/70'
                   }`}
                 >
                   <FileCode2
                     className={`w-3.5 h-3.5 shrink-0 ${
-                      isActive ? 'text-teal-100' : 'text-teal-600'
+                      isActive ? 'text-blue-100' : 'text-blue-600'
                     }`}
                   />
                   <span className="truncate">{file.path}</span>
@@ -117,21 +117,21 @@ export function BlueprintViewer() {
           </div>
         </div>
 
-        <div className="lg:col-span-8 bg-white border border-teal-900/10 rounded-xl overflow-hidden">
+        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden">
           {activeFile ? (
             <>
-              <div className="px-4 py-3 border-b border-teal-900/10 flex items-center justify-between gap-4">
+              <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-4">
                 <span className="text-xs font-mono text-slate-700 truncate">
                   {activeFile.path}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
                 >
                   {copied ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-teal-700" />
+                      <Check className="w-3.5 h-3.5 text-blue-700" />
                       <span>Copiat</span>
                     </>
                   ) : (
@@ -142,7 +142,7 @@ export function BlueprintViewer() {
                   )}
                 </button>
               </div>
-              <pre className="p-4 text-xs font-mono leading-relaxed text-[#0F2928] bg-[#F7FBFA] overflow-x-auto max-h-[540px] overflow-y-auto">
+              <pre className="p-4 text-xs font-mono leading-relaxed text-slate-900 bg-[#F4F8FD] overflow-x-auto max-h-[540px] overflow-y-auto">
                 <code>{activeFile.content}</code>
               </pre>
             </>

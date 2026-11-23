@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Plus, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, Code2, Plus, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import type { MenuCategoryId } from '../config/navigation';
+import type { NavSectionId } from '../config/navigation';
+import type { OrdersTabKey } from './OrdersWorkspace';
 import {
   formatMoney,
   type DashboardSummary,
@@ -10,7 +11,7 @@ import {
 
 interface DashboardOverviewProps {
   products: ProductRecord[];
-  onNavigate: (categoryId: MenuCategoryId, subPageId: string) => void;
+  onNavigate: (section: NavSectionId, opts?: { ordersTab?: OrdersTabKey }) => void;
   onCreateProduct: () => void;
 }
 
@@ -31,7 +32,9 @@ export function DashboardOverview({
       const res = await authFetch('/api/admin/dashboard');
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Nu s-a putut încărca panoul de control.');
+        throw new Error(
+          data.error || 'Nu s-a putut încărca panoul de control.'
+        );
       }
       setSummary(data);
     } catch (err: unknown) {
@@ -46,12 +49,21 @@ export function DashboardOverview({
   }, [loadDashboard]);
 
   const topCategories = useMemo(() => {
-    const map = new Map<string, { name: string; count: number; stockValueCents: number }>();
+    const map = new Map<
+      string,
+      { name: string; count: number; stockValueCents: number }
+    >();
     for (const p of products) {
       const cat = p.category || 'General';
-      const entry = map.get(cat) || { name: cat, count: 0, stockValueCents: 0 };
+      const entry = map.get(cat) || {
+        name: cat,
+        count: 0,
+        stockValueCents: 0,
+      };
       entry.count += 1;
-      entry.stockValueCents += p.basePriceCents * p.stockQuantity;
+      if (!p.priceOnRequest) {
+        entry.stockValueCents += p.basePriceCents * p.stockQuantity;
+      }
       map.set(cat, entry);
     }
     return Array.from(map.values())
@@ -66,11 +78,12 @@ export function DashboardOverview({
     const maxVal = Math.max(...chronological.map((o) => o.totalCents), 10000);
     const width = 420;
     const height = 110;
-    const stepX = chronological.length > 1 ? width / (chronological.length - 1) : width;
+    const stepX =
+      chronological.length > 1 ? width / (chronological.length - 1) : width;
 
     return chronological.map((o, idx) => {
       const x = chronological.length === 1 ? width / 2 : idx * stepX;
-      const y = height - 12 - ((o.totalCents / maxVal) * (height - 24));
+      const y = height - 12 - (o.totalCents / maxVal) * (height - 24);
       return { x, y, label: o.orderNumber, value: o.totalCents };
     });
   }, [summary]);
@@ -78,7 +91,10 @@ export function DashboardOverview({
   const svgLinePath = useMemo(() => {
     if (chartPoints.length === 0) return '';
     return chartPoints
-      .map((pt, idx) => `${idx === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`)
+      .map(
+        (pt, idx) =>
+          `${idx === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`
+      )
       .join(' ');
   }, [chartPoints]);
 
@@ -86,7 +102,9 @@ export function DashboardOverview({
     if (chartPoints.length < 2) return '';
     const first = chartPoints[0];
     const last = chartPoints[chartPoints.length - 1];
-    return `${svgLinePath} L ${last.x.toFixed(1)} 110 L ${first.x.toFixed(1)} 110 Z`;
+    return `${svgLinePath} L ${last.x.toFixed(1)} 110 L ${first.x.toFixed(
+      1
+    )} 110 Z`;
   }, [chartPoints, svgLinePath]);
 
   const statusLabel = (status: string) => {
@@ -100,11 +118,11 @@ export function DashboardOverview({
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="h-24 bg-white border border-teal-900/10 rounded-xl animate-pulse" />
+        <div className="h-24 bg-white border border-slate-200 rounded-xl animate-pulse" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="h-80 bg-white border border-teal-900/10 rounded-xl animate-pulse" />
-          <div className="h-80 bg-white border border-teal-900/10 rounded-xl animate-pulse" />
-          <div className="h-80 bg-white border border-teal-900/10 rounded-xl animate-pulse" />
+          <div className="h-80 bg-white border border-slate-200 rounded-xl animate-pulse" />
+          <div className="h-80 bg-white border border-slate-200 rounded-xl animate-pulse" />
+          <div className="h-80 bg-white border border-slate-200 rounded-xl animate-pulse" />
         </div>
       </div>
     );
@@ -119,7 +137,7 @@ export function DashboardOverview({
         <button
           type="button"
           onClick={loadDashboard}
-          className="px-4 py-2 text-xs font-medium text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg"
+          className="px-4 py-2 text-xs font-medium text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg"
         >
           Reîncarcă
         </button>
@@ -138,90 +156,82 @@ export function DashboardOverview({
     {
       label: 'Comenzi în așteptare',
       value: kpis.pendingOrders,
-      tone: kpis.pendingOrders > 0 ? 'text-teal-700' : 'text-[#0F2928]',
-      onClick: () => onNavigate('comenzi', 'comenzi-asteptare'),
+      tone: kpis.pendingOrders > 0 ? 'text-blue-600' : 'text-slate-900',
+      onClick: () => onNavigate('comenzi', { ordersTab: 'pending' }),
+    },
+    {
+      label: 'Cereri ofertă noi (Preț la cerere)',
+      value: kpis.quoteRequestsNew ?? 0,
+      tone:
+        (kpis.quoteRequestsNew ?? 0) > 0 ? 'text-blue-700' : 'text-slate-900',
+      onClick: () => onNavigate('comenzi', { ordersTab: 'quotes' }),
     },
     {
       label: 'Comenzi în procesare',
       value: kpis.processingOrders,
-      onClick: () => onNavigate('comenzi', 'comenzi-procesare'),
-    },
-    {
-      label: 'Cereri de retur active',
-      value: kpis.returnRequests,
-      tone: kpis.returnRequests > 0 ? 'text-amber-700' : 'text-[#0F2928]',
-      onClick: () => onNavigate('comenzi', 'cereri-retur'),
+      onClick: () => onNavigate('comenzi', { ordersTab: 'processing' }),
     },
     {
       label: 'Produse totale în catalog',
       value: kpis.totalProducts,
-      onClick: () => onNavigate('catalog', 'produse'),
+      onClick: () => onNavigate('produse'),
     },
     {
-      label: 'Produse publicate',
-      value: kpis.publishedProducts,
-      onClick: () => onNavigate('catalog', 'produse'),
+      label: 'Produse cu „Preț la cerere”',
+      value: kpis.priceOnRequestProducts ?? 0,
+      tone: 'text-blue-700',
+      onClick: () => onNavigate('produse'),
     },
     {
       label: 'Produse cu stoc epuizat',
       value: kpis.outOfStockProducts,
-      tone: kpis.outOfStockProducts > 0 ? 'text-red-600' : 'text-[#0F2928]',
-      onClick: () => onNavigate('inventar', 'administrare-stocuri'),
+      tone: kpis.outOfStockProducts > 0 ? 'text-red-600' : 'text-slate-900',
+      onClick: () => onNavigate('produse'),
     },
     {
-      label: 'Categorii active',
-      value: kpis.totalCategories,
-      onClick: () => onNavigate('catalog', 'categorii'),
-    },
-    {
-      label: 'Branduri înregistrate',
-      value: kpis.totalBrands,
-      onClick: () => onNavigate('catalog', 'branduri'),
+      label: 'Pagini site & SEO configurate',
+      value: kpis.sitePagesCount ?? 0,
+      onClick: () => onNavigate('pagini'),
     },
     {
       label: 'Clienți înregistrați',
       value: kpis.totalCustomers,
-      onClick: () => onNavigate('clienti', 'clienti-lista'),
-    },
-    {
-      label: 'Abonați newsletter',
-      value: kpis.newsletterSubscribers,
-      onClick: () => onNavigate('clienti', 'abonati-newsletter'),
+      onClick: () => onNavigate('clienti'),
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header operațional */}
-      <div className="bg-white border border-teal-900/10 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-[#0F2928] tracking-tight">
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
             Panou de control magazin
           </h1>
           <p className="text-sm text-slate-600 mt-0.5">
-            Privire de ansamblu asupra comenzilor, stocurilor, vânzărilor și activității din PostgreSQL.
+            Administrare simplificată pentru produse, comenzi, cereri de ofertă, pagini din cod și SEO.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={loadDashboard}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-teal-900 bg-[#F7FBFA] hover:bg-teal-50 border border-teal-900/15 rounded-lg transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-[#F4F8FD] hover:bg-blue-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Actualizează</span>
           </button>
           <button
             type="button"
-            onClick={() => onNavigate('comenzi', 'comenzi-asteptare')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap"
+            onClick={() => onNavigate('pagini')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap"
           >
-            <span>Procesează comenzi ({kpis.pendingOrders})</span>
+            <Code2 className="w-3.5 h-3.5" />
+            <span>Pagini &amp; SEO</span>
           </button>
           <button
             type="button"
             onClick={onCreateProduct}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Produs nou</span>
@@ -229,76 +239,75 @@ export function DashboardOverview({
         </div>
       </div>
 
-      {/* Grilă principală 3 coloane stil MerchantPro */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Coloana 1: Statistici Catalog & Operațiuni */}
-        <section className="lg:col-span-4 bg-white border border-teal-900/10 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-teal-900/10 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#0F2928]">
-              Statistici catalog și operațiuni
+        <section className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-900">
+              Statistici și acces rapid
             </h2>
-            <span className="text-xs text-slate-500">Acces rapid</span>
+            <span className="text-xs text-slate-500">PostgreSQL Live</span>
           </div>
-          <div className="divide-y divide-teal-900/5">
+          <div className="divide-y divide-slate-100">
             {catalogStatRows.map((row) => (
               <button
                 key={row.label}
                 type="button"
                 onClick={row.onClick}
-                className="w-full px-5 py-2.5 flex items-center justify-between text-left hover:bg-[#F7FBFA] transition-colors group"
+                className="w-full px-5 py-2.5 flex items-center justify-between text-left hover:bg-[#F4F8FD] transition-colors group"
               >
-                <span className="text-xs text-slate-700 group-hover:text-teal-900">
+                <span className="text-xs text-slate-700 group-hover:text-blue-800">
                   {row.label}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span
                     className={`font-mono tabular-nums text-sm font-semibold ${
-                      row.tone ?? 'text-[#0F2928]'
+                      row.tone ?? 'text-slate-900'
                     }`}
                   >
                     {row.value}
                   </span>
-                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-teal-700 transition-colors" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-600 transition-colors" />
                 </span>
               </button>
             ))}
           </div>
         </section>
 
-        {/* Coloana 2: Statistici Vânzări & Top Categorii */}
-        <section className="lg:col-span-4 bg-white border border-teal-900/10 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-teal-900/10 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#0F2928]">
+        <section className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-900">
               Statistici vânzări
             </h2>
             <button
               type="button"
-              onClick={() => onNavigate('rapoarte', 'analiza-trafic')}
-              className="text-xs font-medium text-teal-700 hover:underline"
+              onClick={() => onNavigate('comenzi')}
+              className="text-xs font-medium text-blue-600 hover:underline"
             >
-              Raport detaliat
+              Vezi comenzi
             </button>
           </div>
 
-          <div className="grid grid-cols-2 border-b border-teal-900/10 divide-x divide-teal-900/10">
+          <div className="grid grid-cols-2 border-b border-slate-200 divide-x divide-slate-200">
             <div className="p-4">
               <div className="text-xs text-slate-500">Total vânzări nete</div>
-              <div className="mt-1 text-lg font-semibold text-teal-700 font-mono tabular-nums">
+              <div className="mt-1 text-lg font-semibold text-blue-600 font-mono tabular-nums">
                 {formatMoney(kpis.totalRevenueCents, 'RON')}
               </div>
             </div>
             <div className="p-4">
               <div className="text-xs text-slate-500">Valoare medie comandă</div>
-              <div className="mt-1 text-lg font-semibold text-[#0F2928] font-mono tabular-nums">
+              <div className="mt-1 text-lg font-semibold text-slate-900 font-mono tabular-nums">
                 {formatMoney(kpis.avgOrderCents, 'RON')}
               </div>
             </div>
           </div>
 
-          <div className="p-5 border-b border-teal-900/10">
+          <div className="p-5 border-b border-slate-200">
             <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
               <span>Dinamica valorică a comenzilor recente</span>
-              <span className="font-mono tabular-nums">{kpis.totalOrders} comenzi</span>
+              <span className="font-mono tabular-nums">
+                {kpis.totalOrders} comenzi
+              </span>
             </div>
             {chartPoints.length > 0 ? (
               <svg
@@ -308,17 +317,23 @@ export function DashboardOverview({
                 aria-label="Grafic comenzi recente"
               >
                 <defs>
-                  <linearGradient id="verdaArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0D9488" stopOpacity="0.24" />
-                    <stop offset="100%" stopColor="#0D9488" stopOpacity="0.02" />
+                  <linearGradient id="verdaBlueArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2563EB" stopOpacity="0.24" />
+                    <stop
+                      offset="100%"
+                      stopColor="#2563EB"
+                      stopOpacity="0.02"
+                    />
                   </linearGradient>
                 </defs>
-                {svgAreaPath && <path d={svgAreaPath} fill="url(#verdaArea)" />}
+                {svgAreaPath && (
+                  <path d={svgAreaPath} fill="url(#verdaBlueArea)" />
+                )}
                 {svgLinePath && (
                   <path
                     d={svgLinePath}
                     fill="none"
-                    stroke="#0D9488"
+                    stroke="#2563EB"
                     strokeWidth="2.2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -331,10 +346,13 @@ export function DashboardOverview({
                     cy={pt.y}
                     r="3.2"
                     fill="#FFFFFF"
-                    stroke="#0D9488"
+                    stroke="#2563EB"
                     strokeWidth="2"
                   >
-                    <title>{`${pt.label}: ${formatMoney(pt.value, 'RON')}`}</title>
+                    <title>{`${pt.label}: ${formatMoney(
+                      pt.value,
+                      'RON'
+                    )}`}</title>
                   </circle>
                 ))}
               </svg>
@@ -350,18 +368,20 @@ export function DashboardOverview({
               Top categorii după valoarea inventarului
             </div>
             {topCategories.length === 0 ? (
-              <div className="text-xs text-slate-400">Nicio categorie configurată.</div>
+              <div className="text-xs text-slate-400">
+                Nicio categorie configurată.
+              </div>
             ) : (
               <div className="space-y-2">
                 {topCategories.map((cat) => (
                   <div
                     key={cat.name}
-                    className="flex items-center justify-between text-xs py-1 border-b border-teal-900/5 last:border-b-0"
+                    className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-b-0"
                   >
-                    <span className="text-[#0F2928] font-medium truncate">
+                    <span className="text-slate-900 font-medium truncate">
                       {cat.name} · {cat.count} prod.
                     </span>
-                    <span className="font-mono tabular-nums text-teal-800 shrink-0 ml-2">
+                    <span className="font-mono tabular-nums text-blue-700 shrink-0 ml-2">
                       {formatMoney(cat.stockValueCents, 'RON')}
                     </span>
                   </div>
@@ -371,49 +391,46 @@ export function DashboardOverview({
           </div>
         </section>
 
-        {/* Coloana 3: Comenzi Recente & Jurnal Activitate */}
-        <section className="lg:col-span-4 bg-white border border-teal-900/10 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-teal-900/10 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#0F2928]">
+        <section className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-900">
               Comenzi recente
             </h2>
             <button
               type="button"
-              onClick={() => onNavigate('comenzi', 'comenzi-asteptare')}
-              className="text-xs font-medium text-teal-700 hover:underline"
+              onClick={() => onNavigate('comenzi')}
+              className="text-xs font-medium text-blue-600 hover:underline"
             >
               Vezi toate
             </button>
           </div>
-          <div className="divide-y divide-teal-900/5 max-h-[340px] overflow-y-auto">
+          <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
             {summary.recentOrders.map((order) => (
               <button
                 key={order.id}
                 type="button"
                 onClick={() =>
-                  onNavigate(
-                    'comenzi',
-                    order.status === 'processing'
-                      ? 'comenzi-procesare'
-                      : order.status === 'processed'
-                      ? 'comenzi-procesate'
-                      : order.returnStatus === 'requested'
-                      ? 'cereri-retur'
-                      : 'comenzi-asteptare'
-                  )
+                  onNavigate('comenzi', {
+                    ordersTab:
+                      order.status === 'processing'
+                        ? 'processing'
+                        : order.status === 'processed'
+                        ? 'processed'
+                        : 'pending',
+                  })
                 }
-                className="w-full px-5 py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F7FBFA] transition-colors"
+                className="w-full px-5 py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F8FD] transition-colors"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs">
-                    <span className="font-mono font-semibold text-[#0F2928]">
+                    <span className="font-mono font-semibold text-slate-900">
                       {order.orderNumber}
                     </span>
-                    <span className="text-slate-400">·</span>
+                    <span className="text-slate-300">·</span>
                     <span
                       className={
                         order.status === 'pending'
-                          ? 'text-teal-700 font-medium'
+                          ? 'text-blue-600 font-medium'
                           : order.status === 'returned'
                           ? 'text-amber-700 font-medium'
                           : 'text-slate-600'
@@ -427,7 +444,7 @@ export function DashboardOverview({
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-xs font-mono font-semibold text-[#0F2928] tabular-nums">
+                  <div className="text-xs font-mono font-semibold text-slate-900 tabular-nums">
                     {formatMoney(order.totalCents, order.currency)}
                   </div>
                   <div className="text-[11px] text-slate-400">
@@ -438,19 +455,12 @@ export function DashboardOverview({
             ))}
           </div>
 
-          <div className="px-5 py-3 border-t border-teal-900/10 bg-[#F7FBFA] flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-slate-200 bg-[#F4F8FD] flex items-center justify-between">
             <span className="text-xs font-medium text-slate-700">
-              Ultimele acțiuni în sistem
+              Ultimele modificări în panou
             </span>
-            <button
-              type="button"
-              onClick={() => onNavigate('rapoarte', 'loguri-activitate')}
-              className="text-xs font-medium text-teal-700 hover:underline"
-            >
-              Loguri complete
-            </button>
           </div>
-          <div className="divide-y divide-teal-900/5 max-h-48 overflow-y-auto">
+          <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
             {summary.recentLogs.length === 0 ? (
               <div className="px-5 py-4 text-xs text-slate-400">
                 Nicio acțiune recentă în jurnal.
@@ -458,11 +468,12 @@ export function DashboardOverview({
             ) : (
               summary.recentLogs.slice(0, 5).map((log) => (
                 <div key={log.id} className="px-5 py-2.5 text-xs">
-                  <div className="font-medium text-[#0F2928] truncate">
+                  <div className="font-medium text-slate-900 truncate">
                     {log.action}
                   </div>
                   <div className="text-[11px] text-slate-500 font-mono truncate mt-0.5">
-                    {log.actorEmail} · {new Date(log.createdAt).toLocaleString('ro-RO')}
+                    {log.actorEmail} ·{' '}
+                    {new Date(log.createdAt).toLocaleString('ro-RO')}
                   </div>
                 </div>
               ))

@@ -99,19 +99,19 @@ export function GenericModulePanel({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-teal-900/10 rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#0F2928]">{title}</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-600 mt-1">{description}</p>
         </div>
-        <div className="text-xs font-mono text-teal-800 tabular-nums shrink-0">
+        <div className="text-xs font-mono text-blue-700 tabular-nums shrink-0">
           {items.length} înregistrări în PostgreSQL
         </div>
       </div>
 
       <form
         onSubmit={handleCreate}
-        className="bg-white border border-teal-900/10 rounded-xl p-5 grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
+        className="bg-white border border-slate-200 rounded-xl p-5 grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
       >
         <div className="md:col-span-4">
           <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -122,7 +122,7 @@ export function GenericModulePanel({
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder={`Adaugă element în ${title}`}
-            className="w-full px-3 py-2 text-sm bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+            className="w-full px-3 py-2 text-sm bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
           />
         </div>
         <div className="md:col-span-3">
@@ -134,7 +134,7 @@ export function GenericModulePanel({
             value={newCode}
             onChange={(e) => setNewCode(e.target.value)}
             placeholder={codePlaceholder}
-            className="w-full px-3 py-2 text-sm font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+            className="w-full px-3 py-2 text-sm font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
           />
         </div>
         <div className="md:col-span-3">
@@ -146,14 +146,14 @@ export function GenericModulePanel({
             value={newDataJson}
             onChange={(e) => setNewDataJson(e.target.value)}
             placeholder={extraPlaceholder}
-            className="w-full px-3 py-2 text-xs font-mono bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+            className="w-full px-3 py-2 text-xs font-mono bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
           />
         </div>
         <div className="md:col-span-2 flex gap-2">
           <select
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value)}
-            className="px-2.5 py-2 text-xs bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:border-teal-600"
+            className="px-2.5 py-2 text-xs bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
             aria-label="Status"
           >
             <option value="active">Activ</option>
@@ -163,7 +163,7 @@ export function GenericModulePanel({
           <button
             type="submit"
             disabled={saving || !newTitle.trim()}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Adaugă</span>
@@ -177,7 +177,7 @@ export function GenericModulePanel({
         </div>
       )}
 
-      <div className="bg-white border border-teal-900/10 rounded-xl overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         {loading ? (
           <div className="p-6 text-sm text-slate-500">Se încarcă datele...</div>
         ) : items.length === 0 ? (
@@ -188,7 +188,7 @@ export function GenericModulePanel({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-b border-teal-900/10 bg-[#F7FBFA] text-xs font-medium text-slate-500">
+                <tr className="border-b border-slate-200 bg-[#F4F8FD] text-xs font-medium text-slate-500">
                   <th className="py-2.5 px-4">Denumire</th>
                   <th className="py-2.5 px-4">{codeLabel}</th>
                   <th className="py-2.5 px-4">Parametri</th>
@@ -196,7 +196,7 @@ export function GenericModulePanel({
                   <th className="py-2.5 px-4 text-right">Acțiuni</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-teal-900/5">
+              <tbody className="divide-y divide-slate-100">
                 {items.map((item) => {
                   const isOn =
                     item.status === 'active' || item.status === 'published';
@@ -205,9 +205,9 @@ export function GenericModulePanel({
                   return (
                     <tr
                       key={item.id}
-                      className="hover:bg-teal-50/40 transition-colors"
+                      className="hover:bg-blue-50/40 transition-colors"
                     >
-                      <td className="py-3 px-4 font-medium text-[#0F2928]">
+                      <td className="py-3 px-4 font-medium text-slate-900">
                         {item.title}
                       </td>
                       <td className="py-3 px-4 font-mono text-xs text-slate-600">
@@ -222,10 +222,10 @@ export function GenericModulePanel({
                                 setTimeout(() => setCopiedId(null), 1500);
                               }}
                               title="Copiază referință"
-                              className="p-1 text-slate-400 hover:text-teal-700"
+                              className="p-1 text-slate-400 hover:text-blue-700"
                             >
                               {copiedId === item.id ? (
-                                <Check className="w-3.5 h-3.5 text-teal-700" />
+                                <Check className="w-3.5 h-3.5 text-blue-700" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}
@@ -242,7 +242,7 @@ export function GenericModulePanel({
                           onClick={() => handleToggleStatus(item)}
                           className={`inline-flex items-center gap-2 text-xs font-medium px-2.5 py-1 rounded-md border transition-colors ${
                             isOn
-                              ? 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
                               : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                           }`}
                         >

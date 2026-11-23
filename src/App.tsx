@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BarChart3,
   BookOpen,
   ChevronDown,
   ChevronRight,
-  Globe,
+  FileCode2,
+  FileQuestion,
   Home,
-  Layers,
+  Image as ImageIcon,
   LogOut,
   Megaphone,
   Menu,
   Package,
   Plus,
-  RotateCcw,
   Search,
   Settings,
   ShoppingBag,
@@ -21,10 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import {
-  MENU_CATEGORIES,
-  type MenuCategoryId,
-} from './config/navigation';
+import { NAV_ITEMS, type NavSectionId } from './config/navigation';
 import {
   createEmptyProduct,
   formatMoney,
@@ -32,25 +28,39 @@ import {
   type OrderCounts,
   type OrderRecord,
   type ProductRecord,
+  type QuoteRequestRecord,
+  type SitePageRecord,
 } from './types/commerce';
 import { DashboardOverview } from './components/DashboardOverview';
-import { OrdersWorkspace } from './components/OrdersWorkspace';
-import { CustomersWorkspace } from './components/CustomersWorkspace';
-import { CatalogWorkspace } from './components/CatalogWorkspace';
-import { InventoryWorkspace } from './components/InventoryWorkspace';
-import { CmsMarketingReportsWorkspace } from './components/CmsMarketingReportsWorkspace';
-import { SettingsWorkspace } from './components/SettingsWorkspace';
+import { ProductCatalog } from './components/ProductCatalog';
 import { ProductEditor } from './components/ProductEditor';
+import { OrdersWorkspace, type OrdersTabKey } from './components/OrdersWorkspace';
+import {
+  CustomersWorkspace,
+  type CustomerSubpageKey,
+} from './components/CustomersWorkspace';
+import {
+  PagesSeoWorkspace,
+  type PagesSubpageKey,
+} from './components/PagesSeoWorkspace';
+import { BlogWorkspace } from './components/BlogWorkspace';
+import { SettingsWorkspace } from './components/SettingsWorkspace';
+import {
+  ProductsTaxonomyWorkspace,
+  type TaxonomySubpageKey,
+} from './components/ProductsTaxonomyWorkspace';
+import { MarketingWorkspace } from './components/MarketingWorkspace';
+import { MediaLibraryWorkspace } from './components/MediaLibraryWorkspace';
 
-const CATEGORY_ICONS: Record<MenuCategoryId, typeof ShoppingBag> = {
+const SECTION_ICONS: Record<NavSectionId, typeof Home> = {
+  dashboard: Home,
+  produse: Package,
   comenzi: ShoppingBag,
   clienti: Users,
-  catalog: Package,
-  inventar: Layers,
-  website: Globe,
-  blog: BookOpen,
   marketing: Megaphone,
-  rapoarte: BarChart3,
+  media: ImageIcon,
+  pagini: FileCode2,
+  blog: BookOpen,
   setari: Settings,
 };
 
@@ -64,29 +74,27 @@ function AdminWorkspace() {
     authFetch,
   } = useAuth();
 
-  const [activeCategory, setActiveCategory] = useState<'dashboard' | MenuCategoryId>('dashboard');
-  const [activeSubPage, setActiveSubPage] = useState<string>('dashboard');
-  const [expandedCategories, setExpandedCategories] = useState<
-    Record<MenuCategoryId, boolean>
-  >({
-    comenzi: true,
-    clienti: false,
-    catalog: true,
-    inventar: false,
-    website: false,
-    blog: false,
-    marketing: false,
-    rapoarte: false,
+  const [activeSection, setActiveSection] = useState<NavSectionId>('dashboard');
+  const [activeSubpage, setActiveSubpage] = useState<string>('');
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
+    produse: true,
     setari: false,
   });
+  const [ordersTab, setOrdersTab] = useState<OrdersTabKey>('all');
+  const [settingsCardId, setSettingsCardId] = useState<string>('setari-hub');
 
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [allOrders, setAllOrders] = useState<OrderRecord[]>([]);
   const [allCustomers, setAllCustomers] = useState<CustomerRecord[]>([]);
+  const [sitePages, setSitePages] = useState<SitePageRecord[]>([]);
+  const [newQuotesCount, setNewQuotesCount] = useState<number>(0);
+
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [orderCounts, setOrderCounts] = useState<OrderCounts | null>(null);
-  const [editingProduct, setEditingProduct] = useState<ProductRecord | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductRecord | null>(
+    null
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Global search state
@@ -99,11 +107,14 @@ function AdminWorkspace() {
     setCatalogLoading(true);
     setCatalogError(null);
     try {
-      const [prodRes, ordRes, custRes] = await Promise.all([
+      const [prodRes, ordRes, custRes, pagesRes, quotesRes] = await Promise.all([
         authFetch('/api/admin/products'),
         authFetch('/api/admin/orders?status=all'),
         authFetch('/api/admin/customers'),
+        authFetch('/api/admin/site-pages'),
+        authFetch('/api/admin/quotes'),
       ]);
+
       const prodData = await prodRes.json();
       if (!prodRes.ok) {
         throw new Error(prodData.error || 'Nu s-au putut încărca produsele.');
@@ -119,6 +130,17 @@ function AdminWorkspace() {
       if (custRes.ok) {
         const custData = await custRes.json();
         setAllCustomers(custData.customers ?? []);
+      }
+
+      if (pagesRes.ok) {
+        const pagesData = await pagesRes.json();
+        setSitePages(pagesData.pages ?? []);
+      }
+
+      if (quotesRes.ok) {
+        const qData = await quotesRes.json();
+        const qList: QuoteRequestRecord[] = qData.quotes ?? [];
+        setNewQuotesCount(qList.filter((q) => q.status === 'new').length);
       }
     } catch (err: unknown) {
       setCatalogError(
@@ -137,7 +159,10 @@ function AdminWorkspace() {
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+      if (
+        searchBoxRef.current &&
+        !searchBoxRef.current.contains(e.target as Node)
+      ) {
         setSearchFocused(false);
       }
     };
@@ -147,7 +172,7 @@ function AdminWorkspace() {
 
   const searchResults = useMemo(() => {
     const q = globalQuery.trim().toLowerCase();
-    if (!q) return { products: [], orders: [], customers: [] };
+    if (!q) return { products: [], orders: [], customers: [], pages: [] };
     return {
       products: products
         .filter(
@@ -162,20 +187,25 @@ function AdminWorkspace() {
           (o) =>
             o.orderNumber.toLowerCase().includes(q) ||
             o.customerName.toLowerCase().includes(q) ||
-            o.customerEmail.toLowerCase().includes(q) ||
-            o.awbNumber.toLowerCase().includes(q)
+            o.customerEmail.toLowerCase().includes(q)
         )
-        .slice(0, 4),
+        .slice(0, 3),
       customers: allCustomers
         .filter(
           (c) =>
             c.fullName.toLowerCase().includes(q) ||
-            c.email.toLowerCase().includes(q) ||
-            c.phone.toLowerCase().includes(q)
+            c.email.toLowerCase().includes(q)
         )
-        .slice(0, 4),
+        .slice(0, 3),
+      pages: sitePages
+        .filter(
+          (pg) =>
+            pg.title.toLowerCase().includes(q) ||
+            pg.slug.toLowerCase().includes(q)
+        )
+        .slice(0, 3),
     };
-  }, [globalQuery, products, allOrders, allCustomers]);
+  }, [globalQuery, products, allOrders, allCustomers, sitePages]);
 
   const handleSaveProduct = async (product: ProductRecord) => {
     const isUpdate = Boolean(product.id);
@@ -210,38 +240,72 @@ function AdminWorkspace() {
     await loadWorkspaceData();
   };
 
-  const navigateTo = (categoryId: 'dashboard' | MenuCategoryId, subPageId: string) => {
-    setActiveCategory(categoryId);
-    setActiveSubPage(subPageId);
-    setEditingProduct(null);
-    if (categoryId !== 'dashboard') {
-      setExpandedCategories((prev) => ({ ...prev, [categoryId]: true }));
+  const navigateTo = (
+    section: NavSectionId,
+    opts?: { ordersTab?: OrdersTabKey; settingsCard?: string; subpage?: string }
+  ) => {
+    const navDef = NAV_ITEMS.find((n) => n.id === section);
+    const resolvedSubpage =
+      opts?.subpage ?? navDef?.subpages?.[0]?.id ?? '';
+
+    if (section === 'produse' && resolvedSubpage === 'adauga') {
+      setActiveSection('produse');
+      setActiveSubpage('adauga');
+      setEditingProduct(createEmptyProduct());
+      setExpandedMenus((prev) => ({ ...prev, produse: true }));
+      setMobileMenuOpen(false);
+      setSearchFocused(false);
+      return;
     }
+
+    setActiveSection(section);
+    setActiveSubpage(resolvedSubpage);
+    setEditingProduct(null);
+    if (navDef?.subpages) {
+      setExpandedMenus((prev) => ({ ...prev, [section]: true }));
+    }
+
+    if (opts?.ordersTab) {
+      setOrdersTab(opts.ordersTab);
+      setActiveSubpage(opts.ordersTab);
+    } else if (section === 'comenzi') {
+      setOrdersTab((resolvedSubpage as OrdersTabKey) || 'all');
+    }
+
+    if (opts?.settingsCard) {
+      setSettingsCardId(opts.settingsCard);
+      setActiveSubpage(opts.settingsCard);
+    } else if (section === 'setari') {
+      setSettingsCardId(resolvedSubpage || 'setari-hub');
+    }
+
     setMobileMenuOpen(false);
     setSearchFocused(false);
   };
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#F2F8F7] flex items-center justify-center">
-        <div className="text-sm text-teal-800">Se încarcă panoul de administrare...</div>
+      <div className="min-h-screen bg-[#F4F8FD] flex items-center justify-center">
+        <div className="text-sm text-blue-700">
+          Se încarcă panoul de administrare...
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F2F8F7] flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-white border border-teal-900/15 rounded-xl p-8 space-y-6">
+      <div className="min-h-screen bg-[#F4F8FD] flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 space-y-6 shadow-xs">
           <div className="space-y-2">
-            <div className="text-xs font-semibold text-teal-700">
+            <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
               Verda Commerce
             </div>
-            <h1 className="text-2xl font-semibold text-[#0F2928] tracking-tight">
+            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
               Autentificare Panou Administrare
             </h1>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Conectează-te cu contul Google pentru a administra comenzile, clienții, catalogul extins de produse, stocurile, pragurile de preț și setările magazinului.
+              Conectează-te cu contul Google pentru a administra produsele, prețurile la cerere, comenzile, blogul, paginile din cod și setările SEO.
             </p>
           </div>
 
@@ -254,7 +318,7 @@ function AdminWorkspace() {
           <button
             type="button"
             onClick={signInWithGoogle}
-            className="w-full py-2.5 px-4 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+            className="w-full py-2.5 px-4 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
           >
             Continuă cu Google
           </button>
@@ -263,53 +327,49 @@ function AdminWorkspace() {
     );
   }
 
-  const currentCategoryDef =
-    activeCategory === 'dashboard'
-      ? null
-      : MENU_CATEGORIES.find((c) => c.id === activeCategory);
-  const currentSubDef = currentCategoryDef?.items.find(
-    (i) => i.id === activeSubPage
-  );
+  const currentNav = NAV_ITEMS.find((n) => n.id === activeSection);
+  const currentSubNav = currentNav?.subpages?.find((s) => s.id === activeSubpage);
   const breadcrumb = editingProduct
-    ? `Catalog / Produse / ${editingProduct.title || 'Produs nou'}`
-    : activeCategory === 'dashboard'
-    ? 'Panou de control'
-    : `${currentCategoryDef?.label ?? ''} / ${currentSubDef?.label ?? ''}`;
+    ? `Produse / ${editingProduct.title || 'Produs nou'}`
+    : currentSubNav
+    ? `${currentNav?.label} / ${currentSubNav.label}`
+    : currentNav?.label ?? 'Panou de control';
 
   const hasDropdownResults =
     searchFocused &&
     globalQuery.trim().length > 0 &&
     (searchResults.products.length > 0 ||
       searchResults.orders.length > 0 ||
-      searchResults.customers.length > 0);
+      searchResults.customers.length > 0 ||
+      searchResults.pages.length > 0);
 
   return (
-    <div className="min-h-screen bg-[#F2F8F7] flex">
+    <div className="min-h-screen bg-[#F4F8FD] flex">
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-[#0F2928]/30 z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-900/30 z-40 lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      {/* Sidebar Navigare Completă Turcoaz Light (268px) */}
+      {/* Sidebar Curat Alb & Albastru Pal (248px) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[268px] bg-white border-r border-teal-900/10 flex flex-col transition-transform duration-150 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-[248px] bg-white border-r border-slate-200 flex flex-col transition-transform duration-150 lg:static lg:translate-x-0 ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="h-14 px-5 border-b border-teal-900/10 flex items-center justify-between shrink-0">
+        <div className="h-14 px-5 border-b border-slate-200 flex items-center justify-between shrink-0">
           <button
             type="button"
-            onClick={() => navigateTo('dashboard', 'dashboard')}
-            className="text-base font-bold text-teal-800 tracking-tight whitespace-nowrap hover:text-teal-700"
+            onClick={() => navigateTo('dashboard')}
+            className="text-base font-bold text-blue-700 tracking-tight whitespace-nowrap hover:text-blue-600"
           >
             Verda Commerce
           </button>
           <button
             type="button"
             onClick={() => setMobileMenuOpen(false)}
-            className="lg:hidden p-1 text-slate-500 hover:text-teal-800"
+            className="lg:hidden p-1 text-slate-500 hover:text-blue-700"
             aria-label="Închide meniul"
           >
             <X className="w-4 h-4" />
@@ -317,99 +377,100 @@ function AdminWorkspace() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          <button
-            type="button"
-            onClick={() => navigateTo('dashboard', 'dashboard')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors mb-1 ${
-              activeCategory === 'dashboard' && !editingProduct
-                ? 'bg-teal-600 text-white'
-                : 'text-slate-700 hover:bg-[#F2F8F7] hover:text-teal-900'
-            }`}
-          >
-            <Home
-              className={`w-4 h-4 shrink-0 ${
-                activeCategory === 'dashboard' && !editingProduct
-                  ? 'text-white'
-                  : 'text-slate-400'
-              }`}
-            />
-            <span>Panou de control</span>
-          </button>
+          {NAV_ITEMS.map((item) => {
+            const Icon = SECTION_ICONS[item.id];
+            const isActive =
+              activeSection === item.id &&
+              (!editingProduct || item.id === 'produse');
+            const hasSubpages = Boolean(item.subpages && item.subpages.length > 0);
+            const isExpanded = Boolean(expandedMenus[item.id]);
 
-          {MENU_CATEGORIES.map((category) => {
-            const Icon = CATEGORY_ICONS[category.id];
-            const isExpanded = expandedCategories[category.id];
-            const isCatActive = activeCategory === category.id;
+            const badge =
+              item.id === 'comenzi' && orderCounts
+                ? orderCounts.pending + newQuotesCount
+                : null;
 
             return (
-              <div key={category.id} className="space-y-0.5">
+              <div key={item.id} className="space-y-0.5">
                 <button
                   type="button"
                   onClick={() => {
-                    if (category.id === 'setari') {
-                      navigateTo('setari', 'setari-hub');
-                      return;
+                    if (hasSubpages && activeSection === item.id && !editingProduct) {
+                      setExpandedMenus((prev) => ({
+                        ...prev,
+                        [item.id]: !prev[item.id],
+                      }));
+                    } else {
+                      navigateTo(item.id);
                     }
-                    setExpandedCategories((prev) => ({
-                      ...prev,
-                      [category.id]: !prev[category.id],
-                    }));
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isCatActive
-                      ? 'bg-[#E6F4F2] text-teal-900'
-                      : 'text-slate-700 hover:bg-[#F2F8F7] hover:text-teal-900'
+                  className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-[#EAF2FC] hover:text-blue-900'
                   }`}
                 >
                   <span className="flex items-center gap-2.5 min-w-0">
                     <Icon
                       className={`w-4 h-4 shrink-0 ${
-                        isCatActive ? 'text-teal-700' : 'text-slate-400'
+                        isActive ? 'text-white' : 'text-blue-600'
                       }`}
                     />
-                    <span className="truncate">{category.label}</span>
+                    <span className="truncate">{item.label}</span>
                   </span>
-                  {isExpanded ? (
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  )}
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {badge !== null && badge > 0 && (
+                      <span
+                        className={`font-mono tabular-nums text-[11px] px-1.5 py-0.5 rounded-md ${
+                          isActive
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-[#EAF2FC] text-blue-700 font-semibold'
+                        }`}
+                      >
+                        {badge}
+                      </span>
+                    )}
+                    {hasSubpages &&
+                      (isExpanded ? (
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 ${
+                            isActive ? 'text-white/90' : 'text-slate-400'
+                          }`}
+                        />
+                      ) : (
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 ${
+                            isActive ? 'text-white/90' : 'text-slate-400'
+                          }`}
+                        />
+                      ))}
+                  </span>
                 </button>
 
-                {isExpanded && (
-                  <div className="pl-7 pr-1 py-0.5 space-y-0.5">
-                    {category.items.map((item) => {
-                      const isSubActive =
-                        activeCategory === category.id &&
-                        activeSubPage === item.id &&
-                        !editingProduct;
-
-                      const badgeCount =
-                        item.badgeKey === 'pendingOrders' && orderCounts
-                          ? orderCounts.pending
-                          : null;
-
+                {hasSubpages && isExpanded && (
+                  <div className="pl-5 pr-1 py-1 space-y-0.5 border-l border-blue-100 ml-4">
+                    {item.subpages!.map((sub) => {
+                      const subActive =
+                        isActive &&
+                        (activeSubpage === sub.id ||
+                          (editingProduct &&
+                            item.id === 'produse' &&
+                            sub.id === 'adauga' &&
+                            !editingProduct.id));
                       return (
                         <button
-                          key={item.id}
+                          key={sub.id}
                           type="button"
-                          onClick={() => navigateTo(category.id, item.id)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-md transition-colors text-left ${
-                            isSubActive
-                              ? 'bg-teal-600 text-white font-medium'
-                              : 'text-slate-600 hover:text-teal-900 hover:bg-[#F2F8F7]'
+                          onClick={() =>
+                            navigateTo(item.id, { subpage: sub.id })
+                          }
+                          className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors truncate ${
+                            subActive
+                              ? 'bg-[#EAF2FC] text-blue-800 font-semibold'
+                              : 'text-slate-600 hover:bg-blue-50/60 hover:text-blue-900'
                           }`}
                         >
-                          <span className="truncate">{item.label}</span>
-                          {badgeCount !== null && (
-                            <span
-                              className={`ml-2 font-mono tabular-nums text-[11px] shrink-0 ${
-                                isSubActive ? 'text-teal-100' : 'text-teal-700 font-semibold'
-                              }`}
-                            >
-                              {badgeCount}
-                            </span>
-                          )}
+                          {sub.label}
                         </button>
                       );
                     })}
@@ -420,9 +481,9 @@ function AdminWorkspace() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-teal-900/10 space-y-3 shrink-0 bg-[#F7FBFA]">
+        <div className="p-4 border-t border-slate-200 space-y-3 shrink-0 bg-[#F4F8FD]">
           <div className="min-w-0">
-            <div className="text-xs font-medium text-[#0F2928] truncate">
+            <div className="text-xs font-medium text-slate-900 truncate">
               {user.displayName || 'Administrator'}
             </div>
             <div className="text-xs text-slate-500 truncate">{user.email}</div>
@@ -430,7 +491,7 @@ function AdminWorkspace() {
           <button
             type="button"
             onClick={signOut}
-            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-900 bg-white border border-teal-900/15 hover:bg-teal-50 rounded-lg transition-colors whitespace-nowrap"
+            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors whitespace-nowrap"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Deconectare</span>
@@ -440,12 +501,12 @@ function AdminWorkspace() {
 
       {/* Zona Principală */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-14 px-6 bg-white border-b border-teal-900/10 flex items-center justify-between gap-4 shrink-0">
+        <header className="h-14 px-6 bg-white border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-1.5 text-slate-600 hover:text-teal-900 border border-teal-900/15 rounded-md"
+              className="lg:hidden p-1.5 text-slate-600 hover:text-blue-700 border border-slate-200 rounded-md"
               aria-label="Deschide meniul"
             >
               <Menu className="w-4 h-4" />
@@ -455,7 +516,6 @@ function AdminWorkspace() {
             </div>
           </div>
 
-          {/* Căutare globală live */}
           <div ref={searchBoxRef} className="relative flex-1 max-w-md">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -466,11 +526,11 @@ function AdminWorkspace() {
                 setGlobalQuery(e.target.value);
                 setSearchFocused(true);
               }}
-              placeholder="Caută produse, comenzi, clienți..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#F7FBFA] border border-teal-900/15 rounded-lg focus:outline-none focus:bg-white focus:border-teal-600"
+              placeholder="Caută produse, comenzi, clienți, pagini..."
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#F4F8FD] border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
             />
             {hasDropdownResults && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-teal-900/15 rounded-xl shadow-lg z-50 max-h-80 overflow-y-auto divide-y divide-teal-900/10">
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-80 overflow-y-auto divide-y divide-slate-100">
                 {searchResults.products.length > 0 && (
                   <div className="p-2">
                     <div className="px-2 py-1 text-[11px] font-semibold text-slate-500">
@@ -481,18 +541,19 @@ function AdminWorkspace() {
                         key={p.id ?? p.handle}
                         type="button"
                         onClick={() => {
-                          setActiveCategory('catalog');
-                          setActiveSubPage('produse');
+                          setActiveSection('produse');
                           setEditingProduct(p);
                           setSearchFocused(false);
                         }}
-                        className="w-full px-2 py-1.5 rounded-md hover:bg-teal-50/60 flex items-center justify-between text-xs text-left"
+                        className="w-full px-2 py-1.5 rounded-md hover:bg-blue-50/70 flex items-center justify-between text-xs text-left"
                       >
-                        <span className="font-medium text-[#0F2928] truncate">
+                        <span className="font-medium text-slate-900 truncate">
                           {p.title}
                         </span>
-                        <span className="font-mono text-teal-700 ml-2 shrink-0">
-                          {formatMoney(p.basePriceCents, p.currency)}
+                        <span className="font-mono text-blue-700 ml-2 shrink-0">
+                          {p.priceOnRequest
+                            ? 'Preț la cerere'
+                            : formatMoney(p.basePriceCents, p.currency)}
                         </span>
                       </button>
                     ))}
@@ -509,21 +570,14 @@ function AdminWorkspace() {
                         key={o.id}
                         type="button"
                         onClick={() =>
-                          navigateTo(
-                            'comenzi',
-                            o.status === 'processing'
-                              ? 'comenzi-procesare'
-                              : o.status === 'processed'
-                              ? 'comenzi-procesate'
-                              : 'comenzi-asteptare'
-                          )
+                          navigateTo('comenzi', { ordersTab: o.status })
                         }
-                        className="w-full px-2 py-1.5 rounded-md hover:bg-teal-50/60 flex items-center justify-between text-xs text-left"
+                        className="w-full px-2 py-1.5 rounded-md hover:bg-blue-50/70 flex items-center justify-between text-xs text-left"
                       >
-                        <span className="font-mono font-medium text-[#0F2928]">
+                        <span className="font-mono font-medium text-slate-900">
                           {o.orderNumber} · {o.customerName}
                         </span>
-                        <span className="font-mono text-teal-700 ml-2 shrink-0">
+                        <span className="font-mono text-blue-700 ml-2 shrink-0">
                           {formatMoney(o.totalCents, o.currency)}
                         </span>
                       </button>
@@ -540,10 +594,10 @@ function AdminWorkspace() {
                       <button
                         key={c.id}
                         type="button"
-                        onClick={() => navigateTo('clienti', 'clienti-lista')}
-                        className="w-full px-2 py-1.5 rounded-md hover:bg-teal-50/60 flex items-center justify-between text-xs text-left"
+                        onClick={() => navigateTo('clienti')}
+                        className="w-full px-2 py-1.5 rounded-md hover:bg-blue-50/70 flex items-center justify-between text-xs text-left"
                       >
-                        <span className="font-medium text-[#0F2928]">
+                        <span className="font-medium text-slate-900">
                           {c.fullName}
                         </span>
                         <span className="text-slate-500 ml-2 truncate">
@@ -553,54 +607,78 @@ function AdminWorkspace() {
                     ))}
                   </div>
                 )}
+
+                {searchResults.pages.length > 0 && (
+                  <div className="p-2">
+                    <div className="px-2 py-1 text-[11px] font-semibold text-slate-500">
+                      Pagini &amp; SEO
+                    </div>
+                    {searchResults.pages.map((pg) => (
+                      <button
+                        key={pg.id ?? pg.slug}
+                        type="button"
+                        onClick={() => navigateTo('pagini')}
+                        className="w-full px-2 py-1.5 rounded-md hover:bg-blue-50/70 flex items-center justify-between text-xs text-left"
+                      >
+                        <span className="font-medium text-slate-900">
+                          {pg.title}
+                        </span>
+                        <span className="font-mono text-blue-700 ml-2">
+                          {pg.slug}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Indicatori operaționali + Acțiune primară */}
           <div className="flex items-center gap-2 shrink-0">
             {orderCounts && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigateTo('comenzi', 'comenzi-asteptare')}
-                  title="Comenzi în așteptare"
-                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-teal-900 bg-[#F7FBFA] hover:bg-teal-50 border border-teal-900/15 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Truck className="w-3.5 h-3.5 text-teal-700" />
-                  <span className="font-mono tabular-nums">{orderCounts.pending}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigateTo('comenzi', 'cereri-retur')}
-                  title="Cereri retur în așteptare"
-                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-amber-800 bg-[#F7FBFA] hover:bg-amber-50 border border-teal-900/15 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
-                  <span className="font-mono tabular-nums">
-                    {orderCounts.returnRequests}
-                  </span>
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() =>
+                  navigateTo('comenzi', { ordersTab: 'pending' })
+                }
+                title="Comenzi în așteptare"
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-800 bg-[#F4F8FD] hover:bg-blue-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              >
+                <Truck className="w-3.5 h-3.5 text-blue-600" />
+                <span className="font-mono tabular-nums">
+                  {orderCounts.pending}
+                </span>
+              </button>
             )}
 
             <button
               type="button"
-              onClick={() => navigateTo('setari', 'setari-api-webhook')}
-              className="hidden xl:inline-flex items-center px-3 py-1.5 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              onClick={() => navigateTo('comenzi', { ordersTab: 'quotes' })}
+              title="Cereri ofertă noi (Preț la cerere)"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-blue-800 bg-[#F4F8FD] hover:bg-blue-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
             >
-              API &amp; Blueprint Medusa v2
+              <FileQuestion className="w-3.5 h-3.5 text-blue-600" />
+              <span className="font-mono tabular-nums">{newQuotesCount}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigateTo('setari', { settingsCard: 'setari-api-webhook' })
+              }
+              className="hidden xl:inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            >
+              API &amp; Medusa v2
             </button>
 
             {!editingProduct && (
               <button
                 type="button"
                 onClick={() => {
-                  setActiveCategory('catalog');
-                  setActiveSubPage('produse');
+                  setActiveSection('produse');
                   setEditingProduct(createEmptyProduct());
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Produs nou</span>
@@ -614,58 +692,81 @@ function AdminWorkspace() {
             <ProductEditor
               initialProduct={editingProduct}
               onSave={handleSaveProduct}
-              onCancel={() => setEditingProduct(null)}
+              onCancel={() => {
+                setEditingProduct(null);
+                setActiveSubpage('toate');
+              }}
             />
-          ) : activeCategory === 'dashboard' ? (
+          ) : activeSection === 'dashboard' ? (
             <DashboardOverview
               products={products}
-              onNavigate={(cat, sub) => navigateTo(cat, sub)}
+              onNavigate={(sec, opts) => navigateTo(sec, opts)}
               onCreateProduct={() => {
-                setActiveCategory('catalog');
-                setActiveSubPage('produse');
+                setActiveSection('produse');
+                setActiveSubpage('adauga');
                 setEditingProduct(createEmptyProduct());
               }}
             />
-          ) : activeCategory === 'comenzi' ? (
+          ) : activeSection === 'produse' ? (
+            activeSubpage === 'branduri' ||
+            activeSubpage === 'categorii' ||
+            activeSubpage === 'etichete' ||
+            activeSubpage === 'atribute' ||
+            activeSubpage === 'import-export' ? (
+              <ProductsTaxonomyWorkspace
+                subpage={activeSubpage as TaxonomySubpageKey}
+                onProductsImported={loadWorkspaceData}
+              />
+            ) : (
+              <ProductCatalog
+                products={products}
+                loading={catalogLoading}
+                error={catalogError}
+                initialFilter={
+                  activeSubpage === 'pret-cerere' ? 'price_on_request' : 'all'
+                }
+                onCreateNew={() => {
+                  setActiveSubpage('adauga');
+                  setEditingProduct(createEmptyProduct());
+                }}
+                onEdit={(p) => setEditingProduct(p)}
+                onDelete={handleDeleteProduct}
+                onRefresh={loadWorkspaceData}
+                onQuoteSubmitted={loadWorkspaceData}
+              />
+            )
+          ) : activeSection === 'comenzi' ? (
             <OrdersWorkspace
-              subPageId={activeSubPage}
+              initialTab={ordersTab}
               onCountsUpdated={(counts) => setOrderCounts(counts)}
-              onNavigateSubpage={(subId) => navigateTo('comenzi', subId)}
+              onQuotesUpdated={(qCount) => setNewQuotesCount(qCount)}
             />
-          ) : activeCategory === 'clienti' ? (
-            <CustomersWorkspace subPageId={activeSubPage} />
-          ) : activeCategory === 'catalog' ? (
-            <CatalogWorkspace
-              subPageId={activeSubPage}
-              products={products}
-              loading={catalogLoading}
-              error={catalogError}
-              onCreateNew={() => setEditingProduct(createEmptyProduct())}
-              onEdit={(p) => setEditingProduct(p)}
-              onDelete={handleDeleteProduct}
-              onRefresh={loadWorkspaceData}
-              onNavigateSubpage={(subId) => navigateTo('catalog', subId)}
+          ) : activeSection === 'clienti' ? (
+            <CustomersWorkspace
+              initialSubpage={
+                (activeSubpage as CustomerSubpageKey) || 'toti'
+              }
             />
-          ) : activeCategory === 'inventar' ? (
-            <InventoryWorkspace
-              subPageId={activeSubPage}
-              products={products}
-              onRefreshProducts={loadWorkspaceData}
+          ) : activeSection === 'marketing' ? (
+            <MarketingWorkspace
+              subpage={
+                activeSubpage === 'reguli-cos' ? 'reguli-cos' : 'cupoane'
+              }
             />
-          ) : activeCategory === 'website' ||
-            activeCategory === 'blog' ||
-            activeCategory === 'marketing' ||
-            activeCategory === 'rapoarte' ? (
-            <CmsMarketingReportsWorkspace
-              categoryId={activeCategory}
-              subPageId={activeSubPage}
-              products={products}
+          ) : activeSection === 'media' ? (
+            <MediaLibraryWorkspace />
+          ) : activeSection === 'pagini' ? (
+            <PagesSeoWorkspace
+              initialSubpage={
+                (activeSubpage as PagesSubpageKey) || 'pagini-cod'
+              }
             />
+          ) : activeSection === 'blog' ? (
+            <BlogWorkspace />
           ) : (
             <SettingsWorkspace
-              subPageId={activeSubPage}
               products={products}
-              onSelectSubPage={(id) => navigateTo('setari', id)}
+              initialCardId={settingsCardId}
             />
           )}
         </main>
